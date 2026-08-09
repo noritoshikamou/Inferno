@@ -27,11 +27,11 @@ class ExampleProvider : MainAPI() {
 
         callback(
             newExtractorLink(
-                source = name,
-                name = name,
-                url = videoUrl,
-                referer = mainUrl,
-                quality = Qualities.P1080.value
+                name,
+                name,
+                videoUrl,
+                mainUrl,
+                Qualities.P1080.value
             )
         )
         
