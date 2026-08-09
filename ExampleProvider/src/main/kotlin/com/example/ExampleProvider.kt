@@ -26,12 +26,13 @@ class ExampleProvider : MainAPI() {
         val videoUrl = document.selectFirst("iframe")?.attr("src") ?: return false
 
         callback(
-            newExtractorLink(
-                name,
-                name,
-                videoUrl,
-                mainUrl,
-                Qualities.P1080.value
+            ExtractorLink(
+                source = name,
+                name = name,
+                url = videoUrl,
+                referer = mainUrl,
+                quality = Qualities.P1080.value,
+                type = ExtractorLinkType.VIDEO
             )
         )
         
