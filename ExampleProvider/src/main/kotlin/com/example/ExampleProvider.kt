@@ -3,7 +3,6 @@ package com.example
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 
-
 class ExampleProvider : MainAPI() {
     override var mainUrl = "https://tv12.lk21official.cc"
     override var name = "Example Provider"
@@ -27,12 +26,12 @@ class ExampleProvider : MainAPI() {
         val videoUrl = document.selectFirst("iframe")?.attr("src") ?: return false
 
         callback(
-        newExtractorLink(
-                source = "Nama",
-                name = "Nama",
-                url = url,
-                referer = referer,
-                quality = Qualities.P1080.value,
+            newExtractorLink(
+                source = name,
+                name = name,
+                url = videoUrl,
+                referer = mainUrl,
+                quality = Qualities.P1080.value
             )
         )
         
