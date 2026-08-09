@@ -1,0 +1,10 @@
+{
+  "name": "Inferno Repository",
+  "description": "Kumpulan provider buatan sendiri",
+  "manifestVersion": 1,
+  "pluginLists": [
+    "https://raw.githubusercontent.com/noritoshikamou-hash/Inferno/builds/plugins.json"
+  ]
+}
+
+
