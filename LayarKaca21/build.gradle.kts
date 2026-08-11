@@ -2,9 +2,9 @@
 version = 1
 
 cloudstream {
-    description = "🎬 LayarKaca21"
+    description = "🎥 Movies & TV Series"
     language = "id"
-    authors = listOf("Dzikri")
+    authors = listOf("Noritoshi")
 
     status = 1
 
