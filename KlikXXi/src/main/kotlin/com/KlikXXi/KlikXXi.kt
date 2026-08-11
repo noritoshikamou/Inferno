@@ -36,7 +36,6 @@ class KlikXXi : MainAPI() {
         "category/family/page/%d/" to "Family",
         "category/horror/page/%d/" to "Horror",
         "category/mystery/page/%d/" to "Mystery",
-        "category/roman/page/%d/" to "Romance",
         "category/science-fiction/page/%d/" to "Science Fiction",
         "category/thriller/page/%d/" to "Thriller",
         "category/war/page/%d/" to "War"
