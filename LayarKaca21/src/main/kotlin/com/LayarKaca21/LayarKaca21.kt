@@ -105,7 +105,7 @@ class Lk21Provider : MainAPI() {
             ?: doc.selectFirst("div.entry-content")?.text()
 
         // Mengambil rating
-        val rating = doc.selectFirst("span[itemprop='ratingValue']")?.text()?.toDoubleOrNull()?.times(10)?.toInt()
+        val rating = doc.selectFirst("span[itemprop='ratingValue']")?.text()?.trim()
 
         // [TAMBAHAN OPSIONAL] Mengambil Tahun dan Genre agar lebih lengkap
         val year = doc.selectFirst("span[itemprop='datePublished'], .year")?.text()?.filter { it.isDigit() }?.toIntOrNull()
