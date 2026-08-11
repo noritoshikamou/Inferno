@@ -1,0 +1,92 @@
+[
+    {
+        "iconUrl": "https://i.ibb.co.com/VcG8HmWj/Idlix.png",
+        "fileHash": "sha256-6930581ddc0aa7d44d5edb7eb4f24c70b094e4a3c62433ad2cb0600ccc212462",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/noritoshikamou/Inferno",
+        "fileSize": 41610,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Noritoshi"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "TvSeries",
+            "Movie",
+            "Anime"
+        ],
+        "version": 1,
+        "internalName": "Idlix",
+        "description": "\ud83c\udfa5 Movies & TV Series",
+        "url": "https://raw.githubusercontent.com/noritoshikamou/Inferno/builds/Idlix.cs3",
+        "name": "Idlix"
+    },
+    {
+        "iconUrl": "https://i.ibb.co.com/KxS9mzWv/Klik-XXi.png",
+        "fileHash": "sha256-dc1eb8d7161228d8103a6c309ebe4e7a971c16b3a0a8772434be619940d7cad1",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/noritoshikamou/Inferno",
+        "fileSize": 22988,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Noritoshi"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 1,
+        "internalName": "KlikXXi",
+        "description": "\ud83c\udfa5 Movies & TV Series",
+        "url": "https://raw.githubusercontent.com/noritoshikamou/Inferno/builds/KlikXXi.cs3",
+        "name": "KlikXXi"
+    },
+    {
+        "iconUrl": "https://i.ibb.co.com/vCtZLCQf/LAYAR21.png",
+        "fileHash": "sha256-78f1988624f1d079ba3ee30f692a222ea3a43817036d96c8460128160c9465ca",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/noritoshikamou/Inferno",
+        "fileSize": 19969,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Noritoshi"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "TvSeries",
+            "Movie",
+            "Anime"
+        ],
+        "version": 1,
+        "internalName": "LayarKaca21",
+        "description": "\ud83c\udfa5 Movies & TV Series",
+        "url": "https://raw.githubusercontent.com/noritoshikamou/Inferno/builds/LayarKaca21.cs3",
+        "name": "LayarKaca21"
+    },
+    {
+        "iconUrl": "https://i.ibb.co.com/67bx3Vnw/Ngefilm.png",
+        "fileHash": "sha256-f9d2a99041d28b903e5902a0681889a2ee49af8ca0898d8e14d7319e90ea3793",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/noritoshikamou/Inferno",
+        "fileSize": 23244,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Noritoshi"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 1,
+        "internalName": "Ngefilm",
+        "description": "\ud83c\udfa5 Movies & TV Series",
+        "url": "https://raw.githubusercontent.com/noritoshikamou/Inferno/builds/Ngefilm.cs3",
+        "name": "Ngefilm"
+    }
+]
