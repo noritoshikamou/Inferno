@@ -12,7 +12,6 @@ class LayarKaca21 : MainAPI() {
     override val hasMainPage = true
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.AsianDrama, TvType.Anime)
 
-    // Kategori lengkap dikembalikan sepenuhnya
     override val mainPage = mainPageOf(
         "" to "Terbaru",
         "latest-series" to "Series Terbaru",
@@ -21,20 +20,16 @@ class LayarKaca21 : MainAPI() {
         "populer" to "Terpopuler",
         "rekomendasi-film-pintar" to "Rekomendasi",
         "year/2026" to "2026",
-
         "latest" to "Film Terbaru",
         "nontondrama" to "Series Unggulan",
         "series/update" to "Series Update",
         "quality/bluray" to "Bluray Terbaru",
-        "rekomendasi-film-pintar" to "Rekomendasi Lainnya",
-
         "genre/action" to "Action Terbaru",
         "genre/drama" to "Drama Terbaru",
         "genre/horror" to "Horror Terbaru",
         "genre/animation" to "Animation Terbaru",
         "genre/comedy" to "Comedy Terbaru",
         "genre/romance" to "Romance Terbaru",
-
         "country/south-korea" to "Korea Terbaru",
         "country/thailand" to "Thailand Terbaru",
         "country/india" to "India Terbaru"
@@ -60,11 +55,11 @@ class LayarKaca21 : MainAPI() {
         val href = fixUrl(aTag.attr("href"))
         val imgElement = selectFirst("img")
         val poster = imgElement?.attr("data-src")
-            ?.takeIf { !it.isNullOrEmpty() }
+            .takeIf { !it.isNullOrEmpty() }
             ?: imgElement?.attr("data-original")
-                ?.takeIf { !it.isNullOrEmpty() }
+                .takeIf { !it.isNullOrEmpty() }
             ?: imgElement?.attr("src")
-                ?.takeIf { !it.isNullOrEmpty() }
+                .takeIf { !it.isNullOrEmpty() }
             ?: selectFirst("div.poster img")?.attr("src")
         
         val cleanPoster = poster?.trim()
@@ -90,7 +85,7 @@ class LayarKaca21 : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val doc = app.get(url).document
         
-        val title = doc.selectFirst("h1, h2.entry-title, .m-title, h.title")?.text()?.trim().orEmpty()
+        val title = doc.selectFirst("h1, h2.entry-title, .m-title")?.text()?.trim().orEmpty()
         val poster = doc.selectFirst("meta[property='og:image']")?.attr("content") 
             ?: doc.selectFirst(".poster img, .foto img, img.attachment-post-thumbnail")?.attr("src")
         val description = doc.selectFirst("div.synopsis, div.desc, meta[name='description']")?.attr("content") 
@@ -119,7 +114,7 @@ class LayarKaca21 : MainAPI() {
                 addScore(rating)
             }
         } else {
-            return newMovieLoadResponse(title, url, TvType.Movie) {
+            return newMovieLoadResponse(title, url, TvType.Movie, url) {
                 this.posterUrl = poster
                 this.plot = description
                 this.year = year
