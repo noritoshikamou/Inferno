@@ -16,24 +16,27 @@ class LayarKaca21 : MainAPI() {
     override var lang = "id"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.AsianDrama)
 
-    // Konfigurasi Halaman Utama dan Kategori Sesuai Permintaan
+    // Konfigurasi Halaman Utama dan Kategori
     override val mainPage = mainPageOf(
         "$mainUrl/latest-series/" to "Series Terbaru",
         "$mainUrl/series/ongoing/" to "Series Ongoing",
         "$mainUrl/series/complete/" to "Series Complete",
+        "$mainUrl/year/2026/" to "Katalog Utama",
         "$mainUrl/populer/" to "Terpopuler",
-        "$mainUrl/year/2026/" to "2026",
         "$mainUrl/latest/" to "Film Terbaru",
-        "$mainUrl/quality/bluray/" to "Bluray Terbaru",
+        "$mainUrl/quality/bluray/" to "Bluray",
         "$mainUrl/genre/action/" to "Action",
         "$mainUrl/genre/drama/" to "Drama",
         "$mainUrl/genre/horror/" to "Horror",
         "$mainUrl/genre/animation/" to "Animation",
         "$mainUrl/genre/comedy/" to "Comedy",
         "$mainUrl/genre/romance/" to "Romance",
-        "$mainUrl/country/south-korea/" to "Korea Terbaru",
-        "$mainUrl/country/thailand/" to "Thailand Terbaru",
-        "$mainUrl/country/india/" to "India Terbaru"       
+        "$mainUrl/country/china/" to "China",
+        "$mainUrl/country/india/" to "India",
+        "$mainUrl/country/japan/" to "Jepang",
+        "$mainUrl/country/south-korea/" to "Korea",
+        "$mainUrl/country/thailand/" to "Thailand",
+        
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -87,7 +90,6 @@ class LayarKaca21 : MainAPI() {
         }
     }
 
-    // Perbaikan fungsi search agar lebih aman dari error JSON/Timeout
     override suspend fun search(query: String): List<SearchResponse> {
         val results = mutableListOf<SearchResponse>()
         try {
