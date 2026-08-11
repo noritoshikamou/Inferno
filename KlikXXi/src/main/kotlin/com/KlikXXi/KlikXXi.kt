@@ -91,7 +91,7 @@ class KlikXXi : MainAPI() {
             newMovieSearchResponse(title, href, TvType.Movie) {
                 posterUrl = poster
                 addQuality(quality)
-                score = Score.from10(ratingText?.toDoubleOrNull())
+                score = ratingText?.toDoubleOrNull()?.let { Score.from10(it) }
             }
         }
     }
@@ -129,7 +129,7 @@ class KlikXXi : MainAPI() {
             newMovieSearchResponse(title, href, TvType.Movie) {
                 posterUrl = poster
                 addQuality(quality)
-                score = Score.from10(ratingText?.toDoubleOrNull())
+                score = ratingText?.toDoubleOrNull()?.let { Score.from10(it) }
             }
         }
     }
