@@ -1,13 +1,21 @@
+// use an integer for version numbers
 version = 1
 
 cloudstream {
-    description = "KlikXXi - Streaming Movie and TV Series"
+    description = "🎬 KlikXXi"
     language = "id"
-    authors = listOf("🎥 Movies & TV Series")
+    authors = listOf("Dzikri")
+
     status = 1
-    tvTypes = listOf(
-        "Movie",
-        "TvSeries",
-        "AsianDrama",
-    )
+
+    tvTypes =
+        listOf(
+            "AsianDrama",
+            "TvSeries",
+            "Movie",
+        )
+
+    iconUrl = "https://i.ibb.co.com/KxS9mzWv/Klik-XXi.png"
+
+    isCrossPlatform = false
 }
