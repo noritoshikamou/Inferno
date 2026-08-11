@@ -4,7 +4,7 @@ version = 1
 cloudstream {
     description = "🎥 Movies & TV Series"
     language = "id"
-    authors = listOf("Dzikri")
+    authors = listOf("Noritoshi")
 
     status = 1
 
