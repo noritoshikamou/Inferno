@@ -12,7 +12,7 @@ class LayarKaca21 : MainAPI() {
     override val hasMainPage = true
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.AsianDrama, TvType.Anime)
 
-    // Konfigurasi Halaman Utama dan Kategori
+    // Kategori lengkap dikembalikan sepenuhnya
     override val mainPage = mainPageOf(
         "" to "Terbaru",
         "latest-series" to "Series Terbaru",
@@ -37,7 +37,7 @@ class LayarKaca21 : MainAPI() {
 
         "country/south-korea" to "Korea Terbaru",
         "country/thailand" to "Thailand Terbaru",
-        "country/india" to "India Terbaru"        
+        "country/india" to "India Terbaru"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -58,7 +58,6 @@ class LayarKaca21 : MainAPI() {
         if (title.isEmpty()) return null
     
         val href = fixUrl(aTag.attr("href"))
-    
         val imgElement = selectFirst("img")
         val poster = imgElement?.attr("data-src")
             ?.takeIf { !it.isNullOrEmpty() }
@@ -69,7 +68,6 @@ class LayarKaca21 : MainAPI() {
             ?: selectFirst("div.poster img")?.attr("src")
         
         val cleanPoster = poster?.trim()
-
         val episodeText = selectFirst("span.episode")?.text()
         val isSeries = episodeText != null || selectFirst("span.duration")?.text()?.contains("S.") == true || href.contains("series")
 
@@ -131,7 +129,7 @@ class LayarKaca21 : MainAPI() {
         }
     }
 
-override suspend fun loadLinks(
+    override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
@@ -139,27 +137,12 @@ override suspend fun loadLinks(
     ): Boolean {
         val document = app.get(data).document
     
-        // 1. Ambil langsung link iframe utama (seperti emturbovid.com, dll) dari halaman LK21
-        document.select("div.embed-container iframe, iframe").forEach { iframe ->
+        document.select("iframe").forEach { iframe ->
             val src = iframe.attr("src").takeIf { !it.isNullOrEmpty() && it.startsWith("http") } 
                 ?: iframe.attr("data-src").takeIf { !it.isNullOrEmpty() }
             
             if (src != null && !src.contains("facebook") && !src.contains("telegram")) {
                 loadExtractor(src, data, subtitleCallback, callback)
-            }
-        }
-
-        // 2. Ambil cadangan dari tombol server/opsi player jika ada
-        document.select("a.button, .player-option, .server-item, [data-url], [data-embed]").forEach { element ->
-            val serverUrl = element.attr("data-url")
-                .takeIf { !it.isNullOrEmpty() }
-                ?: element.attr("data-embed")
-                    .takeIf { !it.isNullOrEmpty() }
-                ?: element.attr("href")
-                    .takeIf { !it.isNullOrEmpty() && it.startsWith("http") }
-
-            if (serverUrl != null && !serverUrl.contains("facebook") && !serverUrl.contains("telegram")) {
-                loadExtractor(serverUrl, data, subtitleCallback, callback)
             }
         }
 
