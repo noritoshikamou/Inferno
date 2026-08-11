@@ -141,7 +141,7 @@ class LayarKaca21 : MainAPI() {
         }
     }
 
-   override suspend fun loadLinks(
+override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
@@ -154,7 +154,13 @@ class LayarKaca21 : MainAPI() {
             val src = iframe.attr("src").takeIf { !it.isNullOrEmpty() && it.startsWith("http") } 
                 ?: iframe.attr("data-src").takeIf { !it.isNullOrEmpty() }
             if (src != null) {
-                loadExtractor(fixUrl(src), data, subtitleCallback, callback)
+                // DIPERBAIKI: Menggunakan Named Arguments untuk menjamin parameter tidak tertukar/kurang
+                loadExtractor(
+                    url = fixUrl(src),
+                    dataUrl = data,
+                    subtitleCallback = subtitleCallback,
+                    callback = callback
+                )
             }
         }
 
@@ -164,8 +170,13 @@ class LayarKaca21 : MainAPI() {
                 ?: element.attr("data-url").takeIf { !it.isNullOrEmpty() }
                 ?: element.attr("value").takeIf { !it.isNullOrEmpty() }
             if (dataEmbed != null) {
-                // Diperbarui dengan menambahkan parameter dataUrl (data) sebelum subtitleCallback
-                loadExtractor(fixUrl(dataEmbed), data, data, subtitleCallback, callback)
+                // DIPERBAIKI: Menggunakan format yang sama untuk keamanan kompilasi
+                loadExtractor(
+                    url = fixUrl(dataEmbed),
+                    dataUrl = data,
+                    subtitleCallback = subtitleCallback,
+                    callback = callback
+                )
             }
         }
 
