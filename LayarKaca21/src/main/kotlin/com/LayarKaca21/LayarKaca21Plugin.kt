@@ -7,7 +7,6 @@ import com.lagradost.cloudstream3.plugins.Plugin
 @CloudstreamPlugin
 class LayarKaca21Plugin : Plugin() {
     override fun load(context: Context) {
-        // Sesuaikan dengan nama kelas provider utama di file LayarKaca21.kt Anda
         registerMainAPI(LayarKaca21())
     }
 }
