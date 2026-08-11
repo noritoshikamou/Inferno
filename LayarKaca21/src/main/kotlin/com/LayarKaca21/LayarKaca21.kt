@@ -16,22 +16,45 @@ class LayarKaca21 : MainAPI() {
     override var lang = "id"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.AsianDrama)
 
+    // Konfigurasi Halaman Utama dan Kategori
     override val mainPage = mainPageOf(
-        "$mainUrl/latest/page/" to "Film Upload Terbaru",
-        "$mainUrl/populer/page/" to "Film Terplopuler",
-        "$mainUrl/nonton-bareng-keluarga/page/" to "Nonton Bareng Keluarga",
-        "$mainUrl/rating/page/" to "Film Berdasarkan IMDb Rating",
-        "$mainUrl/most-commented/page/" to "Film Dengan Komentar Terbanyak",
-        "$mainUrl/genre/horror/page/" to "Film Horor Terbaru",
-        "$mainUrl/genre/comedy/page/" to "Film Comedy Terbaru",
-        "$mainUrl/country/thailand/page/" to "Film Thailand Terbaru",
-        "$mainUrl/country/china/page/" to "Film China Terbaru",
-        "$seriesUrl/latest-series/page/" to "Series Terbaru",
-        "$seriesUrl/series/asian/page/" to "Film Asian Terbaru",
+        // Tombol Navigasi Utama (Tab Beranda/Header)
+        "$mainUrl/" to "Terbaru",
+        "$mainUrl/latest-series/" to "Series Terbaru",
+        "$mainUrl/series/ongoing/" to "Series Ongoing",
+        "$mainUrl/series/complete/" to "Series Complete",
+        "$mainUrl/populer/" to "Terpopuler",
+        "$mainUrl/rekomendasi-film-pintar/" to "Rekomendasi",
+        "$mainUrl/year/2026/" to "2026",
+
+        // Kategori Berdasarkan List di Halaman Utama
+        "$mainUrl/latest/" to "Film Terbaru",
+        "$mainUrl/nontondrama/" to "Series Unggulan",
+        "$mainUrl/series/update/" to "Series Update",
+        "$mainUrl/quality/bluray/" to "Bluray Terbaru",
+        "$mainUrl/rekomendasi-film-pintar/" to "Rekomendasi Lainnya",
+
+        // Genre Pilihan di Halaman Depan
+        "$mainUrl/genre/action/" to "Action Terbaru",
+        "$mainUrl/genre/drama/" to "Drama Terbaru",
+        "$mainUrl/genre/horror/" to "Horror Terbaru",
+        "$mainUrl/genre/animation/" to "Animation Terbaru",
+        "$mainUrl/genre/comedy/" to "Comedy Terbaru",
+        "$mainUrl/genre/romance/" to "Romance Terbaru",
+
+        // Negara Pilihan di Halaman Depan
+        "$mainUrl/country/south-korea/" to "Korea Terbaru",
+        "$mainUrl/country/thailand/" to "Thailand Terbaru",
+        "$mainUrl/country/india/" to "India Terbaru"       
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val document = app.get("${request.data}$page").document
+        val targetUrl = if (request.data.endsWith("/")) {
+            "${request.data}page/$page/"
+        } else {
+            "${request.data}/page/$page/"
+        }
+        val document = app.get(targetUrl).document
         val home = document.select("article figure").mapNotNull { runCatching { it.toSearchResult() }.getOrNull() }
         return newHomePageResponse(request.name, home)
     }
@@ -78,30 +101,21 @@ class LayarKaca21 : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val refer = app.get(mainUrl).url
-        val res = app.get("$searchUrl/search.php?s=$query", referer = refer).text
         val results = mutableListOf<SearchResponse>()
-        val root = JSONObject(res)
-        val arr = root.getJSONArray("data")
-
-        for (i in 0 until arr.length()) {
-            val item = arr.getJSONObject(i)
-            val title = item.getString("title")
-            val slug = item.getString("slug")
-            val type = item.getString("type")
-            val posterUrl = "https://static-jpg.lk21.party/wp-content/uploads/" + item.optString("poster")
-            if (type == "series") {
+        try {
+            val document = app.get("$searchUrl/?s=$query", referer = refer).document
+            document.select("article figure").forEach { element ->
+                val title = element.selectFirst("h3")?.text()?.trim() ?: return@forEach
+                val href = fixUrl(element.selectFirst("a")?.attr("href").orEmpty())
+                val posterUrl = fixUrlNull(element.selectFirst("img")?.extractImageAttr().orEmpty())
+                
                 results.add(
-                    newTvSeriesSearchResponse(title, "$seriesUrl/$slug", TvType.TvSeries) {
-                        this.posterUrl = posterUrl
-                    }
-                )
-            } else {
-                results.add(
-                    newMovieSearchResponse(title, "$mainUrl/$slug", TvType.Movie) {
+                    newMovieSearchResponse(title, href, TvType.Movie) {
                         this.posterUrl = posterUrl
                     }
                 )
             }
+        } catch (_: Exception) {
         }
         return results
     }
