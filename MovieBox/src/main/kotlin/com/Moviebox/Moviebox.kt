@@ -64,7 +64,6 @@ class Moviebox : MainAPI() {
         val tvType = if (subject.subjectType == 2) TvType.TvSeries else TvType.Movie
         val description = subject.description
         val trailer = subject.trailer?.videoAddress?.url
-        
         val ratingVal = subject.imdbRatingValue?.toDoubleOrNull()
         
         val actors = doc.stars?.mapNotNull { cast ->
@@ -87,11 +86,12 @@ class Moviebox : MainAPI() {
                 
                 epRange.map { episode -> 
                     val epData = LoadData(id, seasons.se, episode, subject.detailPath)
-                    newEpisode(AppUtils.toJson(epData)) {
-                        this.name = "Episode $episode"
-                        this.season = seasons.se
-                        this.episode = episode
-                    }
+                    Episode(
+                        data = AppUtils.toJson(epData),
+                        name = "Episode $episode",
+                        season = seasons.se,
+                        episode = episode
+                    )
                 }
             }?.flatten() ?: emptyList()
 
@@ -129,7 +129,16 @@ class Moviebox : MainAPI() {
 
         streams?.reversed()?.distinctBy { it.url }?.forEach { source ->
             val videoUrl = source.url ?: return@forEach
-            callback(newExtractorLink(this.name, this.name, videoUrl, referer, getQualityFromName(source.resolutions)))
+            callback(
+                ExtractorLink(
+                    source = this.name,
+                    name = this.name,
+                    url = videoUrl,
+                    referer = "$apiUrl/",
+                    quality = getQualityFromName(source.resolutions),
+                    type = INFER_TYPE
+                )
+            )
         }
 
         val firstStream = streams?.firstOrNull()
