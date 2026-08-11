@@ -16,7 +16,6 @@ class LayarKaca21 : MainAPI() {
     override var lang = "id"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.AsianDrama)
 
-    // Konfigurasi Halaman Utama dan Kategori
     override val mainPage = mainPageOf(
         "$mainUrl/latest-series/" to "Series Terbaru",
         "$mainUrl/series/ongoing/" to "Series Ongoing",
@@ -35,8 +34,7 @@ class LayarKaca21 : MainAPI() {
         "$mainUrl/country/india/" to "India",
         "$mainUrl/country/japan/" to "Jepang",
         "$mainUrl/country/south-korea/" to "Korea",
-        "$mainUrl/country/thailand/" to "Thailand",
-        
+        "$mainUrl/country/thailand/" to "Thailand"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
