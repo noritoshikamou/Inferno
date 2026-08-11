@@ -7,7 +7,7 @@ import org.json.JSONObject
 import org.jsoup.nodes.Element
 
 class LayarKaca21 : MainAPI() {
-    override var mainUrl = "https://lk21.de"
+    override var mainUrl = "https://tv12.lk21official.cc"
     private var seriesUrl = "https://series.lk21.de"
     private var searchUrl = "https://gudangvape.com"
 
