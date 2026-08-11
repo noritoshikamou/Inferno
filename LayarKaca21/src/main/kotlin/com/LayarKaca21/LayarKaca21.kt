@@ -49,10 +49,7 @@ class LayarKaca21 : MainAPI() {
     private fun Element.toSearchResult(): SearchResponse? {
         val title = this.selectFirst("h3")?.ownText()?.trim() ?: this.selectFirst("h3")?.text()?.trim() ?: return null
         val href = fixUrl(this.selectFirst("a")?.attr("href").orEmpty())
-        val posterUrl = fixUrlNull(
-            this.selectFirst("img")?.extractImageAttr() ?: this.selectFirst("img[data-src]")?.attr("data-src")
-                ?: this.selectFirst("img[src]")?.attr("src")
-        )
+        val posterUrl = fixUrlNull(this.selectFirst("img")?.extractImageAttr().orEmpty())
         val ratingText = this.selectFirst("span.rating")?.ownText()?.trim()
         val type = if (this.selectFirst("span.episode") == null) TvType.Movie else TvType.TvSeries
         val posterheaders = mapOf("Referer" to getBaseUrl(posterUrl ?: ""))
@@ -117,9 +114,7 @@ class LayarKaca21 : MainAPI() {
         val title = document.selectFirst("div.movie-info h1")?.text()?.trim()
             ?: document.selectFirst("h1.entry-title")?.text()?.trim()
             ?: "Unknown Title"
-        val poster = document.selectFirst("div.poster img")?.extractImageAttr()
-            ?: document.selectFirst("img[data-src]")?.extractImageAttr()
-            ?: ""
+        val poster = document.selectFirst("div.poster img")?.extractImageAttr().orEmpty()
         val tags = document.select("div.tag-list span").map { it.text() }
         val posterHeaders = mapOf("Referer" to getBaseUrl(poster))
         val year = Regex("\\d, (\\d+)")
@@ -138,7 +133,7 @@ class LayarKaca21 : MainAPI() {
             val recTitle = it.selectFirst("h3")?.text()?.trim().orEmpty()
             val recHref = baseUrl + it.selectFirst("a")?.attr("href").orEmpty()
             newTvSeriesSearchResponse(recTitle, recHref, TvType.TvSeries) {
-                this.posterUrl = fixUrl(it.selectFirst("img")?.attr("src").orEmpty())
+                this.posterUrl = fixUrl(it.selectFirst("img")?.extractImageAttr().orEmpty())
                 this.posterHeaders = posterHeaders
             }
         }
@@ -198,7 +193,7 @@ class LayarKaca21 : MainAPI() {
         val videolar = document.select("ul#player-list a")
         if (videolar.isEmpty()) return false
 
-        videolar.apmap { video ->
+        for (video in videolar) {
             try {
                 val playerAl = app.get(video.attr("href"), referer = "$mainUrl/").document
                 var iframe = playerAl.selectFirst("iframe")?.attr("src").toString()
@@ -211,22 +206,5 @@ class LayarKaca21 : MainAPI() {
             }
         }
         return true
-    }
-
-    private fun Element.extractImageAttr(): String {
-        val attrs = listOf(
-            "data-src",
-            "src",
-            "data-original",
-            "data-lazy-src",
-            "data-srcset",
-            "",
-        )
-        return attrs
-            .asSequence()
-            .map { attr(it) }
-            .firstOrNull { it.isNotBlank() }
-            ?.split(" ")
-            ?.firstOrNull() ?: ""
     }
 }
