@@ -1,4 +1,4 @@
-package com.lk21
+package com.LayarKaca21
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addScore
