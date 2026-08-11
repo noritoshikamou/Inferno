@@ -46,7 +46,7 @@ class Moviebox : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val bodyMap = mapOf("keyword" to query, "page" to "1", "perPage" to "0", "subjectType" to "0")
-        val body = AppUtils.toJson(bodyMap).toRequestBody(RequestBodyTypes.JSON.toMediaTypeOrNull())
+        val body = bodyMap.toJson().toRequestBody(RequestBodyTypes.JSON.toMediaTypeOrNull())
         
         val res = app.post("$mainUrl/wefeed-h5-bff/web/subject/search", requestBody = body).parsedSafe<Media>()
         return res?.data?.items?.mapNotNull { it.toSearchResponse(this) } ?: emptyList()
@@ -86,12 +86,11 @@ class Moviebox : MainAPI() {
                 
                 epRange.map { episode -> 
                     val epData = LoadData(id, seasons.se, episode, subject.detailPath)
-                    Episode(
-                        data = AppUtils.toJson(epData),
-                        name = "Episode $episode",
-                        season = seasons.se,
-                        episode = episode
-                    )
+                    newEpisode(epData.toJson()) {
+                        this.name = "Episode $episode"
+                        this.season = seasons.se
+                        this.episode = episode
+                    }
                 }
             }?.flatten() ?: emptyList()
 
@@ -100,19 +99,19 @@ class Moviebox : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                if (ratingVal != null) this.rating = ratingVal.toInt()
+                if (ratingVal != null) this.score = ScoreData(ratingVal, 10.0)
                 this.actors = actors
                 this.recommendations = recommendations
                 addTrailer(trailer, addRaw = true)
             }
         } else {
             val movieData = LoadData(id, detailPath = subject.detailPath)
-            newMovieLoadResponse(title, url, TvType.Movie, AppUtils.toJson(movieData)) {
+            newMovieLoadResponse(title, url, TvType.Movie, movieData.toJson()) {
                 this.posterUrl = poster
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                if (ratingVal != null) this.rating = ratingVal.toInt()
+                if (ratingVal != null) this.score = ScoreData(ratingVal, 10.0)
                 this.actors = actors
                 this.recommendations = recommendations
                 addTrailer(trailer, addRaw = true)
@@ -130,13 +129,12 @@ class Moviebox : MainAPI() {
         streams?.reversed()?.distinctBy { it.url }?.forEach { source ->
             val videoUrl = source.url ?: return@forEach
             callback(
-                ExtractorLink(
+                newExtractorLink(
                     source = this.name,
                     name = this.name,
                     url = videoUrl,
                     referer = "$apiUrl/",
-                    quality = getQualityFromName(source.resolutions),
-                    type = INFER_TYPE
+                    quality = getQualityFromName(source.resolutions)
                 )
             )
         }
