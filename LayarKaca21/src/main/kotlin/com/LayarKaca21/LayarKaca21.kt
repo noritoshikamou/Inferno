@@ -16,28 +16,21 @@ class LayarKaca21 : MainAPI() {
     override var lang = "id"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.AsianDrama)
 
-    // Konfigurasi Halaman Utama dan Kategori
+    // Konfigurasi Halaman Utama dan Kategori Sesuai Permintaan
     override val mainPage = mainPageOf(
-        // Tombol Navigasi Utama (Tab Beranda/Header)
         "$mainUrl/latest-series/" to "Series Terbaru",
         "$mainUrl/series/ongoing/" to "Series Ongoing",
         "$mainUrl/series/complete/" to "Series Complete",
         "$mainUrl/populer/" to "Terpopuler",
         "$mainUrl/year/2026/" to "2026",
-
-        // Kategori Berdasarkan List di Halaman Utama
         "$mainUrl/latest/" to "Film Terbaru",
         "$mainUrl/quality/bluray/" to "Bluray Terbaru",
-
-        // Genre Pilihan di Halaman Depan
         "$mainUrl/genre/action/" to "Action",
         "$mainUrl/genre/drama/" to "Drama",
         "$mainUrl/genre/horror/" to "Horror",
         "$mainUrl/genre/animation/" to "Animation",
         "$mainUrl/genre/comedy/" to "Comedy",
         "$mainUrl/genre/romance/" to "Romance",
-
-        // Negara Pilihan di Halaman Depan
         "$mainUrl/country/south-korea/" to "Korea Terbaru",
         "$mainUrl/country/thailand/" to "Thailand Terbaru",
         "$mainUrl/country/india/" to "India Terbaru"       
@@ -94,21 +87,26 @@ class LayarKaca21 : MainAPI() {
         }
     }
 
+    // Perbaikan fungsi search agar lebih aman dari error JSON/Timeout
     override suspend fun search(query: String): List<SearchResponse> {
-        val refer = app.get(mainUrl).url
         val results = mutableListOf<SearchResponse>()
         try {
-            val document = app.get("$searchUrl/?s=$query", referer = refer).document
+            val document = app.get("$searchUrl/?s=$query").document
             document.select("article figure").forEach { element ->
                 val title = element.selectFirst("h3")?.text()?.trim() ?: return@forEach
                 val href = fixUrl(element.selectFirst("a")?.attr("href").orEmpty())
                 val posterUrl = fixUrlNull(element.selectFirst("img")?.extractImageAttr().orEmpty())
+                val type = if (element.selectFirst("span.episode") == null) TvType.Movie else TvType.TvSeries
                 
-                results.add(
-                    newMovieSearchResponse(title, href, TvType.Movie) {
+                if (type == TvType.TvSeries) {
+                    results.add(newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
                         this.posterUrl = posterUrl
-                    }
-                )
+                    })
+                } else {
+                    results.add(newMovieSearchResponse(title, href, TvType.Movie) {
+                        this.posterUrl = posterUrl
+                    })
+                }
             }
         } catch (_: Exception) {
         }
