@@ -141,7 +141,7 @@ class LayarKaca21 : MainAPI() {
         }
     }
 
-    override suspend fun loadLinks(
+   override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
@@ -164,7 +164,8 @@ class LayarKaca21 : MainAPI() {
                 ?: element.attr("data-url").takeIf { !it.isNullOrEmpty() }
                 ?: element.attr("value").takeIf { !it.isNullOrEmpty() }
             if (dataEmbed != null) {
-                loadExtractor(fixUrl(dataEmbed), data, subtitleCallback, callback)
+                // Diperbarui dengan menambahkan parameter dataUrl (data) sebelum subtitleCallback
+                loadExtractor(fixUrl(dataEmbed), data, data, subtitleCallback, callback)
             }
         }
 
