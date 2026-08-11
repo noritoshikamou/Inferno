@@ -131,7 +131,7 @@ class LayarKaca21 : MainAPI() {
         }
     }
 
-    override suspend fun loadLinks(
+override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
@@ -139,16 +139,17 @@ class LayarKaca21 : MainAPI() {
     ): Boolean {
         val document = app.get(data).document
     
-        // 1. Ambil semua link dari iframe yang terpasang di halaman
-        document.select("iframe").forEach { iframe ->
+        // 1. Ambil langsung link iframe utama (seperti emturbovid.com, dll) dari halaman LK21
+        document.select("div.embed-container iframe, iframe").forEach { iframe ->
             val src = iframe.attr("src").takeIf { !it.isNullOrEmpty() && it.startsWith("http") } 
                 ?: iframe.attr("data-src").takeIf { !it.isNullOrEmpty() }
-            if (src != null) {
-                loadExtractor(fixUrl(src), data, subtitleCallback, callback)
+            
+            if (src != null && !src.contains("facebook") && !src.contains("telegram")) {
+                loadExtractor(src, data, subtitleCallback, callback)
             }
         }
 
-        // 2. Ambil dari tombol server player bawah
+        // 2. Ambil cadangan dari tombol server/opsi player jika ada
         document.select("a.button, .player-option, .server-item, [data-url], [data-embed]").forEach { element ->
             val serverUrl = element.attr("data-url")
                 .takeIf { !it.isNullOrEmpty() }
@@ -157,8 +158,8 @@ class LayarKaca21 : MainAPI() {
                 ?: element.attr("href")
                     .takeIf { !it.isNullOrEmpty() && it.startsWith("http") }
 
-            if (serverUrl != null && !serverUrl.contains("facebook") && !serverUrl.contains("instagram") && !serverUrl.contains("telegram")) {
-                loadExtractor(fixUrl(serverUrl), data, subtitleCallback, callback)
+            if (serverUrl != null && !serverUrl.contains("facebook") && !serverUrl.contains("telegram")) {
+                loadExtractor(serverUrl, data, subtitleCallback, callback)
             }
         }
 
