@@ -290,4 +290,5 @@ class KlikXXi : MainAPI() {
 
     private fun getBaseUrl(url: String): String =
         URI(url).let { "${it.scheme}://${it.host}" }
+        
 }
