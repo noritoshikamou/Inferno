@@ -149,7 +149,7 @@ class LayarKaca21 : MainAPI() {
     ): Boolean {
         val document = app.get(data).document
     
-        // 1. Cek semua iframe yang ada di halaman detail (diperbaiki agar aman)
+        // 1. Cek semua iframe yang ada di halaman detail
         document.select("iframe").forEach { iframe ->
             val src = iframe.attr("src").takeIf { !it.isNullOrEmpty() && it.startsWith("http") } 
                 ?: iframe.attr("data-src").takeIf { !it.isNullOrEmpty() }
