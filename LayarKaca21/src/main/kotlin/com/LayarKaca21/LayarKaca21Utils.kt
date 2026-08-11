@@ -1,45 +1,11 @@
 package com.LayarKaca21
 
 import com.lagradost.api.Log
-import kotlinx.coroutines.delay
 import org.jsoup.nodes.Element
 import java.net.URI
-import kotlin.random.Random
-
-// ============================================
-// REGION 1: CONSTANTS
-// ============================================
 
 object AutoUsedConstants {
     const val DEFAULT_TIMEOUT = 10000L
-}
-
-// ============================================
-// REGION 2: UTILITY FUNCTIONS
-// ============================================
-
-suspend fun rateLimitDelay(moduleName: String = "default") {
-    val waitTime = 100L + Random.nextLong(0, 400L)
-    delay(waitTime)
-}
-
-suspend fun <T> executeWithRetry(
-    maxRetries: Int = 3,
-    initialDelay: Long = 1000L,
-    block: suspend () -> T
-): T {
-    var lastException: Exception? = null
-    repeat(maxRetries) { attempt ->
-        try {
-            return block()
-        } catch (e: Exception) {
-            lastException = e
-            if (attempt < maxRetries - 1) {
-                delay(initialDelay * (attempt + 1))
-            }
-        }
-    }
-    throw lastException ?: Exception("Unknown error")
 }
 
 fun logDebug(tag: String, message: String) = Log.d(tag, message)
@@ -49,7 +15,22 @@ fun logError(tag: String, message: String, error: Throwable? = null) {
     error?.let { Log.e(tag, "Cause: ${it.message}") }
 }
 
-fun Element.extractImageAttr(): String = this.attr("data-src").ifEmpty { this.attr("src") }.ifEmpty { "" }
+fun Element.extractImageAttr(): String {
+    val attrs = listOf(
+        "data-src",
+        "src",
+        "data-original",
+        "data-lazy-src",
+        "data-srcset",
+        "",
+    )
+    return attrs
+        .asSequence()
+        .map { attr(it) }
+        .firstOrNull { it.isNotBlank() }
+        ?.split(" ")
+        ?.firstOrNull() ?: ""
+}
 
 fun getBaseUrl(url: String?): String {
     if (url.isNullOrEmpty()) return ""
