@@ -4,8 +4,6 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addScore
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Element
-import org.json.JSONObject
-import java.net.URI
 
 class LayarKaca21 : MainAPI() {
     override var mainUrl = "https://tv12.lk21official.cc" // Sesuaikan domain aktif LK21 terbaru
@@ -68,15 +66,18 @@ class LayarKaca21 : MainAPI() {
     
         // Perbaikan selector poster agar tidak gagal load
         val imgElement = selectFirst("img")
-        val poster = imgElement?.attr("data-original") // Terkadang LK21 pakai data-original
-            ?: imgElement?.attr("data-src") 
+        val poster = imgElement?.attr("data-src") // Ditambahkan pengecekan data-src terlebih dahulu
+            .takeIf { !it.isNullOrEmpty() }
+            ?: imgElement?.attr("data-original") // Terkadang LK21 pakai data-original
+                .takeIf { !it.isNullOrEmpty() }
             ?: imgElement?.attr("src")
+                .takeIf { !it.isNullOrEmpty() }
             ?: selectFirst("div.poster img")?.attr("src")
         
         val cleanPoster = poster?.trim()
 
         val episodeText = selectFirst("span.episode")?.text()
-        val isSeries = episodeText != null || selectFirst("span.duration")?.text()?.contains("S.") == true
+        val isSeries = episodeText != null || selectFirst("span.duration")?.text()?.contains("S.") == true || href.contains("series")
 
         return if (isSeries) {
             newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
@@ -99,7 +100,7 @@ class LayarKaca21 : MainAPI() {
         
         val title = doc.selectFirst("h1, h2.entry-title")?.text()?.trim().orEmpty()
         val poster = doc.selectFirst("meta[property='og:image']")?.attr("content") 
-            ?: doc.selectFirst(".poster img")?.attr("src")
+            ?: doc.selectFirst(".poster img, .foto img, img.attachment-post-thumbnail")?.attr("src")
         val description = doc.selectFirst("div.synopsis, div.desc, meta[name='description']")?.attr("content") 
             ?: doc.selectFirst("div.entry-content")?.text()
 
@@ -108,10 +109,10 @@ class LayarKaca21 : MainAPI() {
 
         // [TAMBAHAN OPSIONAL] Mengambil Tahun dan Genre agar lebih lengkap
         val year = doc.selectFirst("span[itemprop='datePublished'], .year")?.text()?.filter { it.isDigit() }?.toIntOrNull()
-        val tags = doc.select(".genres a, .genre a").map { it.text().trim() }
+        val tags = doc.select(".genres a, .genre a").map { it.text().trim() }.filter { it.isNotEmpty() }
 
         // Deteksi apakah halaman ini memiliki episode (Series)
-        val episodeElements = doc.select("div.episodelist ul li a, .seasons-box a, .list-eps a")
+        val episodeElements = doc.select("div.episodelist ul li a, .seasons-box a, .list-eps a, .eps-list a")
         
         if (episodeElements.isNotEmpty()) {
             val episodes = episodeElements.mapIndexed { index, element ->
@@ -150,15 +151,18 @@ class LayarKaca21 : MainAPI() {
     
         // 1. Cek semua iframe yang ada di halaman detail (diperbaiki agar aman)
         document.select("iframe").forEach { iframe ->
-            val src = iframe.attr("src").takeIf { it.isNotEmpty() } ?: iframe.attr("data-src").takeIf { it.isNotEmpty() }
+            val src = iframe.attr("src").takeIf { !it.isNullOrEmpty() && it.startsWith("http") } 
+                ?: iframe.attr("data-src").takeIf { !it.isNullOrEmpty() }
             if (src != null) {
                 loadExtractor(fixUrl(src), data, subtitleCallback, callback)
             }
         }
 
         // 2. Cek tombol atau pilihan server alternatif jika ada
-        document.select(".player-option, .dropdown-menu li a, ul.player-list li").forEach { element ->
-            val dataEmbed = element.attr("data-embed").takeIf { it.isNotEmpty() } ?: element.attr("data-url").takeIf { it.isNotEmpty() }
+        document.select(".player-option, .dropdown-menu li a, ul.player-list li, select.play-option option, .server-item").forEach { element ->
+            val dataEmbed = element.attr("data-embed").takeIf { !it.isNullOrEmpty() } 
+                ?: element.attr("data-url").takeIf { !it.isNullOrEmpty() }
+                ?: element.attr("value").takeIf { !it.isNullOrEmpty() }
             if (dataEmbed != null) {
                 loadExtractor(fixUrl(dataEmbed), data, subtitleCallback, callback)
             }
