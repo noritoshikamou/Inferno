@@ -2,7 +2,7 @@
 version = 1
 
 cloudstream {
-    description = "🎬 KlikXXi"
+    description = "🎥 Movies & TV Series"
     language = "id"
     authors = listOf("Dzikri")
 
