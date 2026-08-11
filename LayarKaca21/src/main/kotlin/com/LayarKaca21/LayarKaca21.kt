@@ -6,7 +6,7 @@ import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Element
 
 class LayarKaca21 : MainAPI() {
-    override var mainUrl = "https://tv12.lk21official.cc" // Sesuaikan domain aktif LK21 terbaru
+    override var mainUrl = "https://tv12.lk21official.cc"
     override var name = "LK21"
     override var lang = "id"
     override val hasMainPage = true
@@ -14,7 +14,6 @@ class LayarKaca21 : MainAPI() {
 
     // Konfigurasi Halaman Utama dan Kategori
     override val mainPage = mainPageOf(
-        // Tombol Navigasi Utama (Tab Beranda/Header)
         "" to "Terbaru",
         "latest-series" to "Series Terbaru",
         "series/ongoing" to "Series Ongoing",
@@ -23,14 +22,12 @@ class LayarKaca21 : MainAPI() {
         "rekomendasi-film-pintar" to "Rekomendasi",
         "year/2026" to "2026",
 
-        // Kategori Berdasarkan List di Halaman Utama
         "latest" to "Film Terbaru",
         "nontondrama" to "Series Unggulan",
         "series/update" to "Series Update",
         "quality/bluray" to "Bluray Terbaru",
         "rekomendasi-film-pintar" to "Rekomendasi Lainnya",
 
-        // Genre Pilihan di Halaman Depan
         "genre/action" to "Action Terbaru",
         "genre/drama" to "Drama Terbaru",
         "genre/horror" to "Horror Terbaru",
@@ -38,7 +35,6 @@ class LayarKaca21 : MainAPI() {
         "genre/comedy" to "Comedy Terbaru",
         "genre/romance" to "Romance Terbaru",
 
-        // Negara Pilihan di Halaman Depan
         "country/south-korea" to "Korea Terbaru",
         "country/thailand" to "Thailand Terbaru",
         "country/india" to "India Terbaru"        
@@ -52,7 +48,6 @@ class LayarKaca21 : MainAPI() {
         }
         
         val document = app.get(url).document
-        // Berdasarkan HTML slider/grid LK21: membungkus artikel film
         val items = document.select("article").mapNotNull { it.toSearchResult() }
         return newHomePageResponse(request.name, items)
     }
@@ -64,7 +59,6 @@ class LayarKaca21 : MainAPI() {
     
         val href = fixUrl(aTag.attr("href"))
     
-        // Perbaikan selector poster agar tidak gagal load
         val imgElement = selectFirst("img")
         val poster = imgElement?.attr("data-src")
             ?.takeIf { !it.isNullOrEmpty() }
@@ -98,21 +92,18 @@ class LayarKaca21 : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val doc = app.get(url).document
         
-        val title = doc.selectFirst("h1, h2.entry-title")?.text()?.trim().orEmpty()
+        val title = doc.selectFirst("h1, h2.entry-title, .m-title, h.title")?.text()?.trim().orEmpty()
         val poster = doc.selectFirst("meta[property='og:image']")?.attr("content") 
             ?: doc.selectFirst(".poster img, .foto img, img.attachment-post-thumbnail")?.attr("src")
         val description = doc.selectFirst("div.synopsis, div.desc, meta[name='description']")?.attr("content") 
             ?: doc.selectFirst("div.entry-content")?.text()
 
-        // Mengambil rating
-        val rating = doc.selectFirst("span[itemprop='ratingValue']")?.text()?.trim()
-
-        // [TAMBAHAN OPSIONAL] Mengambil Tahun dan Genre agar lebih lengkap
+        val rating = doc.selectFirst("span[itemprop='ratingValue'], .rating")?.text()?.trim()
         val year = doc.selectFirst("span[itemprop='datePublished'], .year")?.text()?.filter { it.isDigit() }?.toIntOrNull()
-        val tags = doc.select(".genres a, .genre a").map { it.text().trim() }.filter { it.isNotEmpty() }
+        val tags = doc.select(".genres a, .genre a, meta[itemprop='genre']").map { it.text().trim() }.filter { it.isNotEmpty() }
 
-        // Deteksi apakah halaman ini memiliki episode (Series)
-        val episodeElements = doc.select("div.episodelist ul li a, .seasons-box a, .list-eps a, .eps-list a")
+        // Deteksi episode series berdasarkan struktur layout baru
+        val episodeElements = doc.select(".episodelist ul li a, .seasons-box a, .list-eps a, .episodenotice a, .eps-list a")
         
         if (episodeElements.isNotEmpty()) {
             val episodes = episodeElements.mapIndexed { index, element ->
@@ -149,22 +140,26 @@ class LayarKaca21 : MainAPI() {
     ): Boolean {
         val document = app.get(data).document
     
-        // 1. Cek semua iframe yang ada di halaman detail
+        // 1. Ambil semua link dari iframe yang terpasang di halaman
         document.select("iframe").forEach { iframe ->
             val src = iframe.attr("src").takeIf { !it.isNullOrEmpty() && it.startsWith("http") } 
                 ?: iframe.attr("data-src").takeIf { !it.isNullOrEmpty() }
             if (src != null) {
-                loadExtractor(fixUrl(src), data, subtitleCallback, callback)
+                loadExtractor(fixUrl(src), callback)
             }
         }
 
-        // 2. Cek tombol atau pilihan server alternatif jika ada
-        document.select(".player-option, .dropdown-menu li a, ul.player-list li, select.play-option option, .server-item").forEach { element ->
-            val dataEmbed = element.attr("data-embed").takeIf { !it.isNullOrEmpty() } 
-                ?: element.attr("data-url").takeIf { !it.isNullOrEmpty() }
-                ?: element.attr("value").takeIf { !it.isNullOrEmpty() }
-            if (dataEmbed != null) {
-                loadExtractor(fixUrl(dataEmbed), data, subtitleCallback, callback)
+        // 2. Ambil dari tombol server player bawah (seperti Ganti Player, P2P, Turbovip, dll)
+        document.select("a.button, .player-option, .server-item, [data-url], [data-embed]").forEach { element ->
+            val serverUrl = element.attr("data-url")
+                .takeIf { !it.isNullOrEmpty() }
+                ?: element.attr("data-embed")
+                    .takeIf { !it.isNullOrEmpty() }
+                ?: element.attr("href")
+                    .takeIf { !it.isNullOrEmpty() && it.startsWith("http") }
+
+            if (serverUrl != null && !serverUrl.contains("facebook") && !serverUrl.contains("instagram") && !serverUrl.contains("telegram")) {
+                loadExtractor(fixUrl(serverUrl), callback)
             }
         }
 
