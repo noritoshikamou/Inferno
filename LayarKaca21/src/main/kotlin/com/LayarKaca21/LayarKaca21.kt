@@ -7,7 +7,7 @@ import org.jsoup.nodes.Element
 import org.json.JSONObject
 import java.net.URI
 
-class Lk21Provider : MainAPI() {
+class LayarKaca21 : MainAPI() {
     override var mainUrl = "https://tv12.lk21official.cc" // Sesuaikan domain aktif LK21 terbaru
     override var name = "LK21"
     override var lang = "id"
