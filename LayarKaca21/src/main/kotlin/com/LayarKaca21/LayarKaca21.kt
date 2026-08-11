@@ -66,12 +66,12 @@ class LayarKaca21 : MainAPI() {
     
         // Perbaikan selector poster agar tidak gagal load
         val imgElement = selectFirst("img")
-        val poster = imgElement?.attr("data-src") // Ditambahkan pengecekan data-src terlebih dahulu
-            .takeIf { !it.isNullOrEmpty() }
-            ?: imgElement?.attr("data-original") // Terkadang LK21 pakai data-original
-                .takeIf { !it.isNullOrEmpty() }
+        val poster = imgElement?.attr("data-src")
+            ?.takeIf { !it.isNullOrEmpty() }
+            ?: imgElement?.attr("data-original")
+                ?.takeIf { !it.isNullOrEmpty() }
             ?: imgElement?.attr("src")
-                .takeIf { !it.isNullOrEmpty() }
+                ?.takeIf { !it.isNullOrEmpty() }
             ?: selectFirst("div.poster img")?.attr("src")
         
         val cleanPoster = poster?.trim()
@@ -95,7 +95,7 @@ class LayarKaca21 : MainAPI() {
         return document.select("article").mapNotNull { it.toSearchResult() }
     }
 
-   override suspend fun load(url: String): LoadResponse {
+    override suspend fun load(url: String): LoadResponse {
         val doc = app.get(url).document
         
         val title = doc.selectFirst("h1, h2.entry-title")?.text()?.trim().orEmpty()
@@ -131,7 +131,6 @@ class LayarKaca21 : MainAPI() {
                 addScore(rating)
             }
         } else {
-            // DIPERBAIKI: Menghapus parameter url duplikat di dalam newMovieLoadResponse
             return newMovieLoadResponse(title, url, TvType.Movie) {
                 this.posterUrl = poster
                 this.plot = description
