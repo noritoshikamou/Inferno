@@ -63,19 +63,18 @@ class LayarKaca21 : MainAPI() {
         val aTag = selectFirst("figure a") ?: selectFirst("a") ?: return null
         val title = selectFirst("h3.poster-title")?.text()?.trim() ?: aTag.attr("title").trim()
         if (title.isEmpty()) return null
-        
+    
         val href = fixUrl(aTag.attr("href"))
-        
-        // Versi yang disempurnakan: Mencoba ambil data-src (lazy load), baru src, lalu srcset
+    
+        // Perbaikan selector poster agar tidak gagal load
         val imgElement = selectFirst("img")
-        val poster = imgElement?.attr("data-src") // Banyak situs pakai lazyload
-            ?: imgElement?.attr("src")             // Gambar utama
-            ?: selectFirst("source")?.attr("srcset")?.substringBefore(" ") // Untuk tag <picture>
-            
-        // Bersihkan URL poster agar tidak ada spasi di awal/akhir
+        val poster = imgElement?.attr("data-original") // Terkadang LK21 pakai data-original
+            ?: imgElement?.attr("data-src") 
+            ?: imgElement?.attr("src")
+            ?: selectFirst("div.poster img")?.attr("src")
+        
         val cleanPoster = poster?.trim()
 
-        // Cek apakah konten berupa Series atau Movie
         val episodeText = selectFirst("span.episode")?.text()
         val isSeries = episodeText != null || selectFirst("span.duration")?.text()?.contains("S.") == true
 
@@ -141,31 +140,28 @@ class LayarKaca21 : MainAPI() {
         }
     }
 
-    override suspend fun loadLinks(
+override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val document = app.get(data).document
-        
-        // Mengambil semua link server dari list "GANTI PLAYER"
-        document.select("ul#player-list li a").forEach { element ->
-            val serverUrl = element.attr("data-url")
-            val serverName = element.text().trim()
-            
-            // Kita coba load extractor untuk setiap server yang ditemukan
-            // Jika serverUrl valid, kita proses
-            if (serverUrl.isNotEmpty()) {
-                loadExtractor(fixUrl(serverUrl), data, subtitleCallback, callback)
+    
+        // 1. Cek semua iframe yang ada di halaman detail
+        document.select("iframe").forEach { iframe ->
+            val src = iframe.attr("src").ifEmpty { iframe.attr("data-src") }
+            if (src.isNotEmpty()) {
+                val fixedSrc = fixUrl(src)
+                loadExtractor(fixedSrc, data, subtitleCallback, callback)
             }
         }
-        
-        // Tambahan: Fallback jika list di atas gagal, ambil iframe utama
-        document.select("iframe#main-player").forEach { iframe ->
-            val src = iframe.attr("src")
-            if (src.isNotEmpty()) {
-                loadExtractor(fixUrl(src), data, subtitleCallback, callback)
+
+        // 2. Cek tombol atau pilihan server alternatif jika ada
+        document.select(".player-option, .dropdown-menu li a, ul.player-list li").forEach { element ->
+            val dataEmbed = element.attr("data-embed") ?: element.attr("data-url")
+            if (dataEmbed.isNotEmpty()) {
+                loadExtractor(fixUrl(dataEmbed), data, subtitleCallback, callback)
             }
         }
 
