@@ -140,7 +140,7 @@ class LayarKaca21 : MainAPI() {
         }
     }
 
-override suspend fun loadLinks(
+    override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
@@ -148,19 +148,18 @@ override suspend fun loadLinks(
     ): Boolean {
         val document = app.get(data).document
     
-        // 1. Cek semua iframe yang ada di halaman detail
+        // 1. Cek semua iframe yang ada di halaman detail (diperbaiki agar aman)
         document.select("iframe").forEach { iframe ->
-            val src = iframe.attr("src").ifEmpty { iframe.attr("data-src") }
-            if (src.isNotEmpty()) {
-                val fixedSrc = fixUrl(src)
-                loadExtractor(fixedSrc, data, subtitleCallback, callback)
+            val src = iframe.attr("src").takeIf { it.isNotEmpty() } ?: iframe.attr("data-src").takeIf { it.isNotEmpty() }
+            if (src != null) {
+                loadExtractor(fixUrl(src), data, subtitleCallback, callback)
             }
         }
 
         // 2. Cek tombol atau pilihan server alternatif jika ada
         document.select(".player-option, .dropdown-menu li a, ul.player-list li").forEach { element ->
-            val dataEmbed = element.attr("data-embed") ?: element.attr("data-url")
-            if (dataEmbed.isNotEmpty()) {
+            val dataEmbed = element.attr("data-embed").takeIf { it.isNotEmpty() } ?: element.attr("data-url").takeIf { it.isNotEmpty() }
+            if (dataEmbed != null) {
                 loadExtractor(fixUrl(dataEmbed), data, subtitleCallback, callback)
             }
         }
