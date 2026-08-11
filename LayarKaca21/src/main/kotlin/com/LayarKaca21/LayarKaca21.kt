@@ -31,21 +31,15 @@ class LayarKaca21 : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val response = executeWithRetry(maxRetries = 3) {
-            rateLimitDelay()
-            app.get("${request.data}$page", timeout = AutoUsedConstants.DEFAULT_TIMEOUT).documentLarge
-        }
-
-        val home = response.select("article figure").mapNotNull { runCatching { it.toSearchResult() }.getOrNull() }
-        val result = newHomePageResponse(request.name, home)
-        return result
+        val document = app.get("${request.data}$page").document
+        val home = document.select("article figure").mapNotNull { runCatching { it.toSearchResult() }.getOrNull() }
+        return newHomePageResponse(request.name, home)
     }
 
     private suspend fun normalizeLink(url: String): String {
         if (url.startsWith(seriesUrl)) return url
         return try {
-            rateLimitDelay()
-            val res = app.get(url, timeout = AutoUsedConstants.DEFAULT_TIMEOUT).documentLarge
+            val res = app.get(url).document
             res.selectFirst("a#openNow")?.attr("href") ?: res.selectFirst("div.links a")?.attr("href") ?: url
         } catch (_: Exception) {
             url
@@ -59,30 +53,28 @@ class LayarKaca21 : MainAPI() {
             this.selectFirst("img")?.extractImageAttr() ?: this.selectFirst("img[data-src]")?.attr("data-src")
                 ?: this.selectFirst("img[src]")?.attr("src")
         )
-        val ratingText = selectFirst("span.rating")?.ownText()?.trim()
+        val ratingText = this.selectFirst("span.rating")?.ownText()?.trim()
         val type = if (this.selectFirst("span.episode") == null) TvType.Movie else TvType.TvSeries
-        val posterheaders = mapOf("Referer" to getBaseUrl(posterUrl))
+        val posterheaders = mapOf("Referer" to getBaseUrl(posterUrl ?: ""))
 
         return if (type == TvType.TvSeries) {
             val episode = this
                 .selectFirst("span.episode strong")
                 ?.text()
                 ?.filter { it.isDigit() }
-                ?.toIntOrNull()
+                ?.toIntOrNull() ?: 0
             newAnimeSearchResponse(title, href, TvType.TvSeries) {
                 this.posterUrl = posterUrl
                 this.posterHeaders = posterheaders
                 addSub(episode)
-                this.score =
-                    Score.from10(ratingText?.toDoubleOrNull())
+                this.score = Score.from10(ratingText?.toDoubleOrNull())
             }
         } else {
             newMovieSearchResponse(title, href, TvType.Movie) {
                 this.posterUrl = posterUrl
                 this.posterHeaders = posterheaders
                 addQuality(this@toSearchResult.select("div.quality").text().trim())
-                this.score =
-                    Score.from10(ratingText?.toDoubleOrNull())
+                this.score = Score.from10(ratingText?.toDoubleOrNull())
             }
         }
     }
@@ -103,13 +95,15 @@ class LayarKaca21 : MainAPI() {
             if (type == "series") {
                 results.add(
                     newTvSeriesSearchResponse(title, "$seriesUrl/$slug", TvType.TvSeries) {
-                        this.posterUrl =
-                            posterUrl
+                        this.posterUrl = posterUrl
                     }
                 )
             } else {
-                results
-                    .add(newMovieSearchResponse(title, "$mainUrl/$slug", TvType.Movie) { this.posterUrl = posterUrl })
+                results.add(
+                    newMovieSearchResponse(title, "$mainUrl/$slug", TvType.Movie) {
+                        this.posterUrl = posterUrl
+                    }
+                )
             }
         }
         return results
@@ -117,20 +111,15 @@ class LayarKaca21 : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse {
         val fixUrl = normalizeLink(url)
-        val document = executeWithRetry(maxRetries = 3) {
-            rateLimitDelay()
-            app.get(fixUrl, timeout = AutoUsedConstants.DEFAULT_TIMEOUT).documentLarge
-        }
+        val document = app.get(fixUrl).document
 
         val baseUrl = getBaseUrl(fixUrl)
-        val title =
-            document.selectFirst("div.movie-info h1")?.text()?.trim()
-                ?: document.selectFirst("h1.entry-title")?.text()?.trim()
-                ?: "Unknown Title"
-        val poster =
-            document.selectFirst("div.poster img")?.extractImageAttr()
-                ?: document.selectFirst("img[data-src]")?.extractImageAttr()
-                ?: ""
+        val title = document.selectFirst("div.movie-info h1")?.text()?.trim()
+            ?: document.selectFirst("h1.entry-title")?.text()?.trim()
+            ?: "Unknown Title"
+        val poster = document.selectFirst("div.poster img")?.extractImageAttr()
+            ?: document.selectFirst("img[data-src]")?.extractImageAttr()
+            ?: ""
         val tags = document.select("div.tag-list span").map { it.text() }
         val posterHeaders = mapOf("Referer" to getBaseUrl(poster))
         val year = Regex("\\d, (\\d+)")
@@ -139,34 +128,29 @@ class LayarKaca21 : MainAPI() {
             ?.get(1)
             ?.toIntOrNull()
         val tvType = if (document.selectFirst("#season-data") != null) TvType.TvSeries else TvType.Movie
-        val description =
-            document.selectFirst("div.meta-info")?.text()?.trim()
-                ?: document.selectFirst("div.description")?.text()?.trim()
-                ?: ""
+        val description = document.selectFirst("div.meta-info")?.text()?.trim()
+            ?: document.selectFirst("div.description")?.text()?.trim()
+            ?: ""
         val trailer = document.selectFirst("ul.action-left > li:nth-child(3) > a")?.attr("href")
         val rating = document.selectFirst("div.info-tag strong")?.text()
 
         val recommendations = document.select("li.slider article").mapNotNull {
-            newTvSeriesSearchResponse(
-                it
-                    .selectFirst("h3")
-                    ?.text()
-                    ?.trim()
-                    .orEmpty(),
-                baseUrl + it.selectFirst("a")?.attr("href").orEmpty(), TvType.TvSeries
-            ) {
+            val recTitle = it.selectFirst("h3")?.text()?.trim().orEmpty()
+            val recHref = baseUrl + it.selectFirst("a")?.attr("href").orEmpty()
+            newTvSeriesSearchResponse(recTitle, recHref, TvType.TvSeries) {
                 this.posterUrl = fixUrl(it.selectFirst("img")?.attr("src").orEmpty())
-                this.posterHeaders =
-                    posterHeaders
+                this.posterHeaders = posterHeaders
             }
         }
 
         return if (tvType == TvType.TvSeries) {
             val episodes = mutableListOf<Episode>()
             val json = document.selectFirst("script#season-data")?.data()
-            if (json != null) {
+            if (!json.isNullOrEmpty()) {
                 val root = JSONObject(json)
-                root.keys().forEach { seasonKey ->
+                val keys = root.keys()
+                while (keys.hasNext()) {
+                    val seasonKey = keys.next()
                     val seasonArr = root.getJSONArray(seasonKey)
                     for (i in 0 until seasonArr.length()) {
                         val ep = seasonArr.getJSONObject(i)
@@ -174,8 +158,7 @@ class LayarKaca21 : MainAPI() {
                             newEpisode(fixUrl("$baseUrl/" + ep.getString("slug"))) {
                                 this.name = "Episode ${ep.optInt("episode_no")}"
                                 this.season = ep.optInt("s")
-                                this.episode =
-                                    ep.optInt("episode_no")
+                                this.episode = ep.optInt("episode_no")
                             }
                         )
                     }
@@ -186,8 +169,7 @@ class LayarKaca21 : MainAPI() {
                 this.posterHeaders = posterHeaders
                 this.year = year
                 this.plot = description
-                this.tags =
-                    tags
+                this.tags = tags
                 this.score = Score.from10(rating)
                 this.recommendations = recommendations
                 addTrailer(trailer)
@@ -198,8 +180,7 @@ class LayarKaca21 : MainAPI() {
                 this.posterHeaders = posterHeaders
                 this.year = year
                 this.plot = description
-                this.tags =
-                    tags
+                this.tags = tags
                 this.score = Score.from10(rating)
                 this.recommendations = recommendations
                 addTrailer(trailer)
@@ -217,17 +198,15 @@ class LayarKaca21 : MainAPI() {
         val videolar = document.select("ul#player-list a")
         if (videolar.isEmpty()) return false
 
-        videolar.amap { video ->
+        videolar.apmap { video ->
             try {
                 val playerAl = app.get(video.attr("href"), referer = "$mainUrl/").document
                 var iframe = playerAl.selectFirst("iframe")?.attr("src").toString()
-                if (iframe.contains("short.icu")) iframe = app.get(iframe, allowRedirects = true).url
-
-                if (!loadExtractorWithFallback(url = iframe, referer = "$mainUrl/", subtitleCallback = subtitleCallback, callback = callback)) {
-                    MasterLinkGenerator.createLink(source = "LayarKaca", url = iframe, referer = "$mainUrl/")?.let {
-                        callback(it)
-                    }
+                if (iframe.contains("short.icu")) {
+                    iframe = app.get(iframe, allowRedirects = true).url
                 }
+
+                loadExtractor(iframe, "$mainUrl/", subtitleCallback, callback)
             } catch (_: Exception) {
             }
         }
