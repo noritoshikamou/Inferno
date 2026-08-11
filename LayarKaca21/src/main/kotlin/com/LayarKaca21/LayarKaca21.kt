@@ -102,7 +102,6 @@ class LayarKaca21 : MainAPI() {
         val year = doc.selectFirst("span[itemprop='datePublished'], .year")?.text()?.filter { it.isDigit() }?.toIntOrNull()
         val tags = doc.select(".genres a, .genre a, meta[itemprop='genre']").map { it.text().trim() }.filter { it.isNotEmpty() }
 
-        // Deteksi episode series berdasarkan struktur layout baru
         val episodeElements = doc.select(".episodelist ul li a, .seasons-box a, .list-eps a, .episodenotice a, .eps-list a")
         
         if (episodeElements.isNotEmpty()) {
@@ -145,11 +144,11 @@ class LayarKaca21 : MainAPI() {
             val src = iframe.attr("src").takeIf { !it.isNullOrEmpty() && it.startsWith("http") } 
                 ?: iframe.attr("data-src").takeIf { !it.isNullOrEmpty() }
             if (src != null) {
-                loadExtractor(fixUrl(src), callback)
+                loadExtractor(fixUrl(src), data, subtitleCallback, callback)
             }
         }
 
-        // 2. Ambil dari tombol server player bawah (seperti Ganti Player, P2P, Turbovip, dll)
+        // 2. Ambil dari tombol server player bawah
         document.select("a.button, .player-option, .server-item, [data-url], [data-embed]").forEach { element ->
             val serverUrl = element.attr("data-url")
                 .takeIf { !it.isNullOrEmpty() }
@@ -159,7 +158,7 @@ class LayarKaca21 : MainAPI() {
                     .takeIf { !it.isNullOrEmpty() && it.startsWith("http") }
 
             if (serverUrl != null && !serverUrl.contains("facebook") && !serverUrl.contains("instagram") && !serverUrl.contains("telegram")) {
-                loadExtractor(fixUrl(serverUrl), callback)
+                loadExtractor(fixUrl(serverUrl), data, subtitleCallback, callback)
             }
         }
 
