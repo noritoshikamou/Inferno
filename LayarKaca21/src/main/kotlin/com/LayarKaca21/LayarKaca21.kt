@@ -19,28 +19,23 @@ class LayarKaca21 : MainAPI() {
     // Konfigurasi Halaman Utama dan Kategori
     override val mainPage = mainPageOf(
         // Tombol Navigasi Utama (Tab Beranda/Header)
-        "$mainUrl/" to "Terbaru",
         "$mainUrl/latest-series/" to "Series Terbaru",
         "$mainUrl/series/ongoing/" to "Series Ongoing",
         "$mainUrl/series/complete/" to "Series Complete",
         "$mainUrl/populer/" to "Terpopuler",
-        "$mainUrl/rekomendasi-film-pintar/" to "Rekomendasi",
         "$mainUrl/year/2026/" to "2026",
 
         // Kategori Berdasarkan List di Halaman Utama
         "$mainUrl/latest/" to "Film Terbaru",
-        "$mainUrl/nontondrama/" to "Series Unggulan",
-        "$mainUrl/series/update/" to "Series Update",
         "$mainUrl/quality/bluray/" to "Bluray Terbaru",
-        "$mainUrl/rekomendasi-film-pintar/" to "Rekomendasi Lainnya",
 
         // Genre Pilihan di Halaman Depan
-        "$mainUrl/genre/action/" to "Action Terbaru",
-        "$mainUrl/genre/drama/" to "Drama Terbaru",
-        "$mainUrl/genre/horror/" to "Horror Terbaru",
-        "$mainUrl/genre/animation/" to "Animation Terbaru",
-        "$mainUrl/genre/comedy/" to "Comedy Terbaru",
-        "$mainUrl/genre/romance/" to "Romance Terbaru",
+        "$mainUrl/genre/action/" to "Action",
+        "$mainUrl/genre/drama/" to "Drama",
+        "$mainUrl/genre/horror/" to "Horror",
+        "$mainUrl/genre/animation/" to "Animation",
+        "$mainUrl/genre/comedy/" to "Comedy",
+        "$mainUrl/genre/romance/" to "Romance",
 
         // Negara Pilihan di Halaman Depan
         "$mainUrl/country/south-korea/" to "Korea Terbaru",
