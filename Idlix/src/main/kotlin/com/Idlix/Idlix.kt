@@ -30,7 +30,6 @@ class Idlix : MainAPI() {
         "$mainUrl/" to "Featured",
         "$mainUrl/movie" to "Film Terbaru",
         "$mainUrl/series" to "Serial TV Terbaru",
-        "$mainUrl/collection" to "Koleksi",
     )
 
     private fun getBaseUrl(url: String): String {
@@ -79,7 +78,6 @@ class Idlix : MainAPI() {
     private fun extractImageUrl(element: Element?): String {
         if (element == null) return ""
         
-        // Cek berbagai atribut gambar yang sering dipakai oleh tema WordPress/Next.js
         val attrs = listOf("data-src", "data-lazy-src", "data-original", "data-bg", "src", "srcset")
         for (attr in attrs) {
             val value = element.attr(attr)
@@ -93,7 +91,6 @@ class Idlix : MainAPI() {
             }
         }
 
-        // Cek background-image dari atribut style jika ada
         val style = element.attr("style")
         if (style.contains("background-image")) {
             val regex = Regex("url\\(['\"]?(.*?)['\"]?\\)").find(style)
@@ -113,12 +110,10 @@ class Idlix : MainAPI() {
         val title = titleElement.text().replace(Regex("\\(\\d{4}\\)"), "").trim()
         if (title.isBlank()) return null
 
-        // Cari elemen gambar di dalam card, atau ambil background dari div/article jika berupa card CSS
         val imgElement = this.selectFirst("img")
         var posterUrl = extractImageUrl(imgElement)
         
         if (posterUrl.isBlank()) {
-            // Cek elemen lain yang mungkin menyimpan background atau gambar via style/atribut lain
             val bgElement = this.selectFirst("[style*='background-image'], [data-bg], [data-background]")
             posterUrl = extractImageUrl(bgElement)
         }
