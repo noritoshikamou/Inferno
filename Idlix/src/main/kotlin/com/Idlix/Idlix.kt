@@ -75,7 +75,15 @@ class Idlix : MainAPI() {
         val title = titleElement.text().replace(Regex("\\(\\d{4}\\)"), "").trim()
         if (title.isBlank()) return null
 
-        val posterUrl = this.selectFirst("img")?.attr("src") ?: ""
+        val imgElement = this.selectFirst("img")
+        val posterUrl = imgElement?.let {
+            it.attr("data-src").ifEmpty {
+                it.attr("data-lazy-src").ifEmpty {
+                    it.attr("srcset").split(",").firstOrNull()?.trim()?.split(" ")?.firstOrNull() ?: it.attr("src")
+                }
+            }
+        } ?: ""
+
         val quality = getQualityFromString(this.select("span.quality, .badge").text())
         val tvType = if (href.contains("/series/")) TvType.TvSeries else TvType.Movie
 
@@ -100,7 +108,16 @@ class Idlix : MainAPI() {
         val document = request.document
         
         val title = document.selectFirst("h1")?.text()?.replace(Regex("\\(\\d{4}\\)"), "")?.trim().toString()
-        val poster = document.selectFirst("div.poster img, img.poster, main img")?.attr("src") ?: ""
+        
+        val posterElement = document.selectFirst("div.poster img, img.poster, main img, .thumb img, .entry-cover img")
+        val poster = posterElement?.let {
+            it.attr("data-src").ifEmpty {
+                it.attr("data-lazy-src").ifEmpty {
+                    it.attr("srcset").split(",").firstOrNull()?.trim()?.split(" ")?.firstOrNull() ?: it.attr("src")
+                }
+            }
+        } ?: ""
+
         val tags = document.select("div.genres a, .tags a, span.genre").map { it.text() }
         
         val yearText = document.select("span.date, .released, time").text().trim()
@@ -125,7 +142,14 @@ class Idlix : MainAPI() {
             val episodes = document.select("ul.episodios > li, .episode-item, a[href*='/episode/']").map {
                 val href = it.select("a").attr("href").ifEmpty { it.attr("href") }
                 val epName = fixTitle(it.select(".title, span").text().trim())
-                val image = it.select("img").attr("src")
+                
+                val epImgElement = it.selectFirst("img")
+                val image = epImgElement?.let { img ->
+                    img.attr("data-src").ifEmpty {
+                        img.attr("data-lazy-src").ifEmpty { img.attr("src") }
+                    }
+                } ?: ""
+
                 val numerandoText = it.select(".numerando, .ep-number").text()
                 val episode = Regex("E(pisode)?\\s?(\\d+)").find(numerandoText)?.groupValues?.get(2)?.toIntOrNull()
                 val season = Regex("S(eason)?\\s?(\\d+)").find(numerandoText)?.groupValues?.get(2)?.toIntOrNull()
