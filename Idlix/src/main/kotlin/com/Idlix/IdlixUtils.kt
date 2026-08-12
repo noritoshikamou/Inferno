@@ -5,17 +5,9 @@ import com.lagradost.cloudstream3.SearchQuality
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
-// ============================================
-// REGION 1: CONSTANTS
-// ============================================
-
 object AutoUsedConstants {
     const val DEFAULT_TIMEOUT = 10000L
 }
-
-// ============================================
-// REGION 2: UTILITY FUNCTIONS
-// ============================================
 
 suspend fun rateLimitDelay(moduleName: String = "default") {
     val waitTime = 100L + Random.nextLong(0, 400L)
@@ -61,11 +53,7 @@ fun getQualityFromString(quality: String?): SearchQuality {
 }
 
 fun base64Decode(str: String): String = try {
-    String(
-        java.util.Base64
-            .getDecoder()
-            .decode(str)
-    )
+    String(java.util.Base64.getDecoder().decode(str))
 } catch (e: Exception) {
     str
 }
