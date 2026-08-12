@@ -3,10 +3,6 @@ package com.Idlix
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 
 object MasterLinkGenerator {
     suspend fun createLink(
@@ -47,14 +43,8 @@ suspend fun loadExtractorWithFallback(
     subtitleCallback: (SubtitleFile) -> Unit,
     callback: (ExtractorLink) -> Unit
 ): Boolean {
-    var deliveredLinks = 0
-    val trackedCallback: (ExtractorLink) -> Unit = { link ->
-        deliveredLinks++
-        callback(link)
-    }
-
     try {
-        if (loadExtractor(url, referer, subtitleCallback, trackedCallback)) return true
+        if (loadExtractor(url, referer, subtitleCallback, callback)) return true
     } catch (_: Exception) {}
 
     val urlDomain = url.removePrefix("http://").removePrefix("https://").split("/").first().lowercase()
@@ -62,19 +52,13 @@ suspend fun loadExtractorWithFallback(
         urlDomain.contains(extractor.mainUrl.removePrefix("http://").removePrefix("https://").split("/").first().lowercase())
     }
 
-    coroutineScope {
-        val semaphore = Semaphore(3)
-        matchingExtractors.forEach { extractor ->
-            launch {
-                semaphore.withPermit {
-                    try {
-                        extractor.getUrl(url, referer, subtitleCallback, trackedCallback)
-                    } catch (_: Exception) {}
-                }
-            }
-        }
+    for (extractor in matchingExtractors) {
+        try {
+            extractor.getUrl(url, referer, subtitleCallback, callback)
+            return true
+        } catch (_: Exception) {}
     }
-    return deliveredLinks > 0
+    return false
 }
 
 class Jeniusplay : ExtractorApi() {
