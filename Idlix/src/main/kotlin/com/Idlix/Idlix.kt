@@ -46,7 +46,7 @@ class Idlix : MainAPI() {
         mainUrl = getBaseUrl(req.url)
         val document = req.document
         
-        val home = document.select("a[href*='/movie/'], a[href*='/series/']").mapNotNull {
+        val home = document.select("div.items > item, article.item, div.post-row, div.item, div.result-item, div.tv-show, div.box, div.grid article, main article, div.group, div[class*='grid'] div, div[class*='flex'] div, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
             it.toSearchResult()
         }.distinctBy { it.url }
         
@@ -136,7 +136,7 @@ class Idlix : MainAPI() {
         val req = app.get("$mainUrl/search?q=$query")
         mainUrl = getBaseUrl(req.url)
         val document = req.document
-        return document.select("a[href*='/movie/'], a[href*='/series/'], article, div.item, div.result-item").mapNotNull {
+        return document.select("div.items > item, article.item, div.post-row, div.item, div.result-item, div.tv-show, div.grid article, main article, div.group, div[class*='grid'] div, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
             it.toSearchResult()
         }.distinctBy { it.url }
     }
