@@ -12,6 +12,7 @@ import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import org.jsoup.nodes.Element
 import java.net.URI
 
+
 class Idlix : MainAPI() {
     override var mainUrl = "https://z2.idlixku.com"
     private var directUrl = mainUrl
