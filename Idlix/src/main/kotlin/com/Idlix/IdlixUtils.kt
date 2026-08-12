@@ -2,16 +2,9 @@ package com.Idlix
 
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.SearchQuality
-import kotlinx.coroutines.delay
-import kotlin.random.Random
 
 object AutoUsedConstants {
     const val DEFAULT_TIMEOUT = 10000L
-}
-
-suspend fun rateLimitDelay(moduleName: String = "default") {
-    val waitTime = 100L + Random.nextLong(0, 400L)
-    delay(waitTime)
 }
 
 suspend fun <T> executeWithRetry(
@@ -25,9 +18,6 @@ suspend fun <T> executeWithRetry(
             return block()
         } catch (e: Exception) {
             lastException = e
-            if (attempt < maxRetries - 1) {
-                delay(initialDelay * (attempt + 1))
-            }
         }
     }
     throw lastException ?: Exception("Unknown error")
