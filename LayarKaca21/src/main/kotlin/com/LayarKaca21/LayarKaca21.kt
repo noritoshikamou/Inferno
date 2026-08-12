@@ -78,18 +78,11 @@ class LayarKaca21 : MainAPI() {
         val posterheaders = mapOf("Referer" to getBaseUrl(posterUrl ?: ""))
 
         return if (type == TvType.TvSeries) {
-            val episode = this
-                .selectFirst("span.episode strong")
-                ?.text()
-                ?.filter { it.isDigit() }
-                ?.toIntOrNull() ?: 0
-            
             newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
                 this.posterUrl = posterUrl
                 this.posterHeaders = posterheaders
                 this.score = Score.from10(ratingText?.toDoubleOrNull())
                 addQuality(qualityText)
-                addSub(episode)
             }
         } else {
             newMovieSearchResponse(title, href, TvType.Movie) {
