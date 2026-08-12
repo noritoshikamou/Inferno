@@ -40,18 +40,19 @@ class Idlix : MainAPI() {
     }
 
     override suspend fun getMainPage(
-        page: Int,
-        request: MainPageRequest
-    ): HomePageResponse {
-        val req = app.get(request.data)
-        mainUrl = getBaseUrl(req.url)
-        val document = req.document
+            page: Int,
+            request: MainPageRequest
+        ): HomePageResponse {
+            val req = app.get(request.data)
+            mainUrl = getBaseUrl(req.url)
+            val document = req.document
         
-        val home = document.select("div.grid article, main article, div.group, .item-root, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
-            it.toSearchResult()
-        }.distinctBy { it.url }
+            // Memperluas selector agar mencakup card / link film versi Next.js
+            val home = document.select("div.grid article, main article, div.group, .item-root, div[class*='grid'] a, div[class*='flex'] a, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
+                it.toSearchResult()
+            }.distinctBy { it.url }
         
-        return newHomePageResponse(request.name, home)
+            return newHomePageResponse(request.name, home)
     }
 
     private fun getProperLink(uri: String): String {
@@ -66,31 +67,35 @@ class Idlix : MainAPI() {
         }
     }
 
-    private fun Element.toSearchResult(): SearchResponse? {
-        val aTag = if (this.tagName() == "a") this else (this.selectFirst("a") ?: return null)
+ private fun Element.toSearchResult(): SearchResponse? {
+        val aTag = if (this.tagName() == "a") this else (this.selectFirst("a") ?: this.selectFirst("a[href*='/movie/'], a[href*='/series/']") ?: return null)
         val href = getProperLink(aTag.attr("href"))
         if (href.isBlank() || (!href.contains("/movie/") && !href.contains("/series/"))) return null
         
-        val titleElement = this.selectFirst("h3, h2, .title, span") ?: aTag
+        // Mengambil judul dari elemen teks di dalam kartu
+        val titleElement = this.selectFirst("h3, h2, .title, span[class*='title'], div[class*='title']") ?: aTag
         val title = titleElement.text().replace(Regex("\\(\\d{4}\\)"), "").trim()
         if (title.isBlank()) return null
 
+        // Perbaikan pencarian elemen gambar (poster) yang sering terbungkus komponen Next.js
         val imgElement = this.selectFirst("img")
         val posterUrl = if (imgElement != null) {
             val dataSrc = imgElement.attr("data-src")
             val dataLazy = imgElement.attr("data-lazy-src")
             val dataOrig = imgElement.attr("data-original")
+            val srcset = imgElement.attr("srcset")
             val src = imgElement.attr("src")
             when {
                 dataSrc.isNotEmpty() -> dataSrc
                 dataLazy.isNotEmpty() -> dataLazy
                 dataOrig.isNotEmpty() -> dataOrig
+                srcset.isNotEmpty() -> srcset.split(" ").firstOrNull() ?: ""
                 src.isNotEmpty() && !src.contains("data:image") -> src
                 else -> ""
             }
         } else ""
 
-        val quality = getQualityFromString(this.select("span.quality, .badge").text())
+        val quality = getQualityFromString(this.select("span.quality, .badge, div[class*='quality']").text())
         val tvType = if (href.contains("/series/")) TvType.TvSeries else TvType.Movie
 
         return newMovieSearchResponse(title, href, tvType) {
@@ -99,11 +104,11 @@ class Idlix : MainAPI() {
         }
     }
 
-    override suspend fun search(query: String): List<SearchResponse> {
+   override suspend fun search(query: String): List<SearchResponse> {
         val req = app.get("$mainUrl/search?q=$query")
         mainUrl = getBaseUrl(req.url)
         val document = req.document
-        return document.select("div.grid article, main article, div.group, a").mapNotNull {
+        return document.select("div.grid article, main article, div.group, div[class*='grid'] a, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
             it.toSearchResult()
         }.distinctBy { it.url }
     }
