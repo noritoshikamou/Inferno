@@ -98,7 +98,8 @@ data class IdlixChallengeResponse(
 
 data class IdlixSolveResponse(
     val embedUrl: String? = null,
-    val url: String? = null
+    val url: String? = null,
+    val file: String? = null
 )
 
 data class IdlixLoadData(
@@ -285,19 +286,16 @@ class Idlix : MainAPI() {
             headers = headers
         ).parsedSafe<IdlixSolveResponse>() ?: return false
 
-        val embedUrl = solve.embedUrl ?: solve.url ?: return false
+        val embedUrl = solve.embedUrl ?: solve.url ?: solve.file ?: return false
         val finalUrl = if (embedUrl.startsWith("http")) embedUrl else "$mainUrl$embedUrl"
         
-        val documentTarget = app.get(finalUrl).document
-        val iframeSrc = documentTarget.selectFirst("iframe")?.attr("src") ?: finalUrl
-        
-        return loadExtractorWithFallback(iframeSrc, mainUrl, subtitleCallback, callback)
+        return loadExtractorWithFallback(finalUrl, mainUrl, subtitleCallback, callback)
     }
 
     private fun solvePow(challenge: String, difficulty: Int): Int {
         val target = "0".repeat(difficulty)
         var nonce = 0
-        while (nonce < 5000000) {
+        while (nonce < 20000000) {
             if (sha256(challenge + nonce).startsWith(target)) return nonce
             nonce++
         }
