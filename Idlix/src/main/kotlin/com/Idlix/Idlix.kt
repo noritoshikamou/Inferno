@@ -191,7 +191,7 @@ class Idlix : MainAPI() {
         ).parsedSafe<IdlixSolveResponse>() ?: return false
 
         val embedUrl = solve.embedUrl ?: solve.url ?: solve.file ?: return false
-        val finalUrl = if (embedUrl.startsWith("http")) embedUrl else "$mainUrl$embedUrl"
+        val finalUrl = if (embedUrl.startsWith("http", ignoreCase = true)) embedUrl else "$mainUrl$embedUrl"
         
         return loadExtractorWithFallback(finalUrl, mainUrl, subtitleCallback, callback)
     }
