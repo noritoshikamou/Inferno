@@ -38,7 +38,7 @@ class Idlix : MainAPI() {
         }
     }
 
-    override suspend fun getMainPage(
+  override suspend fun getMainPage(
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
@@ -46,12 +46,20 @@ class Idlix : MainAPI() {
         mainUrl = getBaseUrl(req.url)
         val document = req.document
         
-        // Memindai langsung seluruh tag <a> yang mengarah ke movie atau series di halaman utama
-        val home = document.select("a[href*='/movie/'], a[href*='/series/']").mapNotNull {
+        val home = document.select("a.content-card, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
             it.toSearchResult()
         }.distinctBy { it.url }
         
         return newHomePageResponse(request.name, home)
+    }
+
+    override suspend fun search(query: String): List<SearchResponse> {
+        val req = app.get("$mainUrl/search?q=$query")
+        mainUrl = getBaseUrl(req.url)
+        val document = req.document
+        return document.select("a.content-card, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
+            it.toSearchResult()
+        }.distinctBy { it.url }
     }
 
     private fun getProperLink(uri: String): String {
@@ -103,19 +111,16 @@ class Idlix : MainAPI() {
         return ""
     }
 
-    private fun Element.toSearchResult(): SearchResponse? {
-        val aTag = if (this.tagName() == "a") this else (this.selectFirst("a[href*='/movie/'], a[href*='/series/']") ?: return null)
+private fun Element.toSearchResult(): SearchResponse? {
+        val aTag = if (this.hasClass("content-card") || this.tagName() == "a") this else (this.selectFirst("a.content-card") ?: this.selectFirst("a[href*='/movie/'], a[href*='/series/']") ?: return null)
         val href = getProperLink(aTag.attr("href"))
         if (href.isBlank() || (!href.contains("/movie/") && !href.contains("/series/"))) return null
         
-        // Mengambil elemen gambar di dalam tag <a> kartu
         val imgElement = aTag.selectFirst("img")
+        val titleElement = aTag.selectFirst("h3.text-sm, h3, h2, .title")
         
-        // Mengambil judul dari atribut alt pada gambar atau atribut title pada tag a
-        val title = imgElement?.attr("alt")?.ifBlank {
-            aTag.attr("title").ifBlank {
-                aTag.selectFirst("h3, h2, .title, span")?.text() ?: ""
-            }
+        val title = titleElement?.text()?.ifBlank {
+            imgElement?.attr("alt") ?: ""
         }?.replace(Regex("\\(\\d{4}\\)"), "")?.trim() ?: ""
 
         if (title.isBlank()) return null
