@@ -2,6 +2,12 @@ import com.android.build.gradle.BaseExtension
 import com.lagradost.cloudstream3.gradle.CloudstreamExtension
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
 
 buildscript {
     repositories {
@@ -13,7 +19,6 @@ buildscript {
     dependencies {
         classpath("com.android.tools.build:gradle:8.7.3")
         classpath("com.github.recloudstream:gradle:-SNAPSHOT")
-        // Diubah ke 2.4.0 agar sinkron dengan cloudstream.jar terbaru
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.0")
     }
 }
@@ -60,7 +65,7 @@ subprojects {
                     "-Xno-call-assertions",
                     "-Xno-param-assertions",
                     "-Xno-receiver-assertions",
-                    "-Xskip-metadata-version-check" // Ditambahkan di sini agar aman
+                    "-Xskip-metadata-version-check"
                 )
             }
         }
@@ -79,45 +84,21 @@ subprojects {
     }
 }
 
-task<Delete>("clean") {
+tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
 
-import javax.net.ssl.*
-import java.security.cert.X509Certificate
-
-// Bypass SSL certificate validation for build script network requests
+// Bypass SSL certificate validation for build script network requests (Kotlin DSL version)
 try {
-    def trustAllCerts = [
-        new X509Certificate() {
-            public void checkClientTrusted(X509Certificate[] chain, String authType) {}
-            public void checkServerTrusted(X509Certificate[] chain, String authType) {}
-            public X509Certificate[] getAcceptedIssuers() { return null; }
-            public void verify(PublicKey key) {}
-            public void verify(PublicKey key, String sigProvider) {}
-            public String toString() { return ""; }
-            public boolean hasExpired() { return false; }
-            public Date getNotBefore() { return new Date(); }
-            public Date getNotAfter() { return new Date(Long.MAX_VALUE); }
-            public byte[] getTBSCertificate() { return new byte[0]; }
-            public byte[] getSignature() { return new byte[0]; }
-            public String getSigAlgName() { return ""; }
-            public String getSigAlgOID() { return ""; }
-            public byte[] getSigAlgParams() { return new byte[0]; }
-            public boolean[] getIssuerUniqueID() { return null; }
-            public boolean[] getSubjectUniqueID() { return null; }
-            public boolean[] getKeyUsage() { return null; }
-            public int getVersion() { return 1; }
-            public java.math.BigInteger getSerialNumber() { return java.math.BigInteger.ONE; }
-            public javax.security.auth.x500.X500Principal getIssuerX500Principal() { return new javax.security.auth.x500.X500Principal("CN=Dummy"); }
-            public javax.security.auth.x500.X500Principal getSubjectX500Principal() { return new javax.security.auth.x500.X500Principal("CN=Dummy"); }
-        }
-    ] as TrustManager[]
-
-    SSLContext sc = SSLContext.getInstance("SSL")
-    sc.init(null, trustAllCerts, new java.security.SecureRandom())
-    HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory())
-    HttpsURLConnection.setDefaultHostnameVerifier({ _, _ -> true } as HostnameVerifier)
-} catch (Exception e) {
+    val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
+        override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+        override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+        override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
+    })
+    val sc = SSLContext.getInstance("SSL")
+    sc.init(null, trustAllCerts, SecureRandom())
+    HttpsURLConnection.setDefaultSSLSocketFactory(sc.socketFactory)
+    HttpsURLConnection.setDefaultHostnameVerifier { _, _ -> true }
+} catch (e: Exception) {
     e.printStackTrace()
 }
