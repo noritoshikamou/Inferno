@@ -69,8 +69,7 @@ class Idlix : MainAPI() {
         mainUrl = getBaseUrl(req.url)
         val document = req.document
         
-        // Perluasan selector card agar mencakup semua jenis struktur item grid/list website
-        val home = document.select("div.items > item, article.item, div.post-row, div.item, div.result-item, div.tv-show, div.映画, div.box, div.grid article, main article, div.group, .item-root, div[class*='grid'] div, div[class*='flex'] div, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
+        val home = document.select("div.items > item, article.item, div.post-row, div.item, div.result-item, div.tv-show, div.映画, div.box, div.grid article, main article, div.group, .item-root, div[class*='grid'] div, div[class*='flex'] div, a[href*='/movie/'], a[href*='/series/'], a.content-card").mapNotNull {
             it.toSearchResult()
         }.distinctBy { it.url }
         
@@ -126,17 +125,16 @@ class Idlix : MainAPI() {
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
-        val aTag = if (this.tagName() == "a") this else (this.selectFirst("a[href*='/movie/'], a[href*='/series/']") ?: this.selectFirst("a") ?: return null)
+        val aTag = if (this.tagName() == "a") this else (this.selectFirst("a.content-card, a[href*='/movie/'], a[href*='/series/']") ?: this.selectFirst("a") ?: return null)
         val href = getProperLink(aTag.attr("href"))
         if (href.isBlank() || (!href.contains("/movie/") && !href.contains("/series/"))) return null
         
-        // Mengambil judul dari elemen teks dengan fallback yang aman agar tidak null
         val titleElement = this.selectFirst("h3, h2, .title, span[class*='title'], div[class*='title'], .data h3, .name") ?: aTag
         val rawTitle = titleElement.text().ifBlank { aTag.attr("title") }
         val title = rawTitle.replace(Regex("\\(\\d{4}\\)"), "").trim()
         if (title.isBlank()) return null
 
-        // Mencari elemen gambar/poster dengan cakupan luas
+        // Diperbarui agar mendukung struktur tag <img> di dalam kontainer content-card dengan atribut srcset/src TMDB
         val imgElement = this.selectFirst("img")
         var posterUrl = extractImageUrl(imgElement)
         
@@ -145,7 +143,7 @@ class Idlix : MainAPI() {
             posterUrl = extractImageUrl(bgElement)
         }
 
-        val quality = getQualityFromString(this.select("span.quality, .badge, div[class*='quality'], .res").text())
+        val quality = getQualityFromString(this.select("span.quality, .badge, div[class*='quality'], .res, .content-badge").text())
         val tvType = if (href.contains("/series/")) TvType.TvSeries else TvType.Movie
 
         return newMovieSearchResponse(title, href, tvType) {
@@ -158,7 +156,7 @@ class Idlix : MainAPI() {
         val req = app.get("$mainUrl/search?q=$query")
         mainUrl = getBaseUrl(req.url)
         val document = req.document
-        return document.select("div.items > item, article.item, div.post-row, div.item, div.result-item, div.tv-show, div.grid article, main article, div.group, div[class*='grid'] a, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
+        return document.select("div.items > item, article.item, div.post-row, div.item, div.result-item, div.tv-show, div.grid article, main article, div.group, div[class*='grid'] a, a.content-card, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
             it.toSearchResult()
         }.distinctBy { it.url }
     }
@@ -170,7 +168,7 @@ class Idlix : MainAPI() {
         
         val title = document.selectFirst("h1, .sheader .data h1, .entry-title")?.text()?.replace(Regex("\\(\\d{4}\\)"), "")?.trim() ?: "Unknown"
         
-        val posterElement = document.selectFirst("div.poster img, img.poster, main img, .thumb img, .entry-cover img, .poster-container img, .sheader .poster img")
+        val posterElement = document.selectFirst("div.poster img, img.poster, main img, .thumb img, .entry-cover img, .poster-container img, .sheader .poster img, img.backdrop-img")
         var poster = extractImageUrl(posterElement)
         if (poster.isBlank()) {
             val altPoster = document.selectFirst("div.poster, .thumb, [style*='background-image']")
@@ -193,7 +191,7 @@ class Idlix : MainAPI() {
         
         val duration = document.selectFirst("span.duration, .runtime")?.text()?.replace(Regex("\\D"), "")?.toIntOrNull() ?: 0
 
-        val recommendations = document.select("div.related article, .recommendations a, .cates div.item").mapNotNull {
+        val recommendations = document.select("div.related article, .recommendations a, .cates div.item, a.content-card").mapNotNull {
             it.toSearchResult()
         }
 
