@@ -4,10 +4,6 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 
-// ============================================
-// REGION 1: MASTER LINK GENERATOR
-// ============================================
-
 object MasterLinkGenerator {
     suspend fun createLink(
         source: String,
@@ -40,10 +36,6 @@ object MasterLinkGenerator {
         }
     }
 }
-
-// ============================================
-// REGION 2: LOAD EXTRACTOR WITH FALLBACK
-// ============================================
 
 suspend fun loadExtractorWithFallback(
     url: String,
@@ -88,10 +80,6 @@ suspend fun loadExtractorWithFallback(
     return deliveredLinks > 0
 }
 
-// ============================================
-// REGION 3: EXTRACTOR CLASSES
-// ============================================
-
 class Jeniusplay : ExtractorApi() {
     override val name = "Jeniusplay"
     override val mainUrl = "https://jeniusplay.com"
@@ -135,10 +123,6 @@ class Jeniusplay : ExtractorApi() {
         @JsonProperty("videoSource") val videoSource: String? = null
     )
 }
-
-// ============================================
-// REGION 4: EXTRACTORS LIST
-// ============================================
 
 object IdlixEkstraktors {
     val list = listOf(
