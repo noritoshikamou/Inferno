@@ -140,7 +140,7 @@ class Idlix : MainAPI() {
                 this.tags = tags
                 this.score = Score.from10(data.voteAverage?.toString())
                 addActors(actors)
-                addTrailer(data.trailerUrl)
+                data.trailerUrl?.let { addTrailer(it) }
                 addTMDbId(data.tmdbId)
                 addImdbId(data.imdbId)
             }
@@ -156,50 +156,96 @@ class Idlix : MainAPI() {
                 this.tags = tags
                 this.score = Score.from10(data.voteAverage?.toString())
                 addActors(actors)
-                addTrailer(data.trailerUrl)
+                data.trailerUrl?.let { addTrailer(it) }
                 addTMDbId(data.tmdbId)
                 addImdbId(data.imdbId)
             }
         }
     }
 
-override suspend fun loadLinks(
+    override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val parsed = AppUtils.parseJson<IdlixLoadData>(data)
-        val aclrResponse = app.get("$mainUrl/pagead/ad_frame.js?_=${System.currentTimeMillis()}", interceptor = cloudflareInterceptor)
-        val aclr = aclrResponse.text.let {
-            Regex("""__aclr\s*=\s*"([a-f0-9]+)""").find(it)?.groupValues?.getOrNull(1)
+        // Jika data berupa URL trailer (YouTube / HTTP eksternal), langsung tangani lewat loadExtractor
+        if (data.startsWith("http") || data.contains("youtube") || data.contains("youtu.be")) {
+            return loadExtractor(data, "", subtitleCallback, callback)
         }
+
+        val parsed = try {
+            AppUtils.parseJson<IdlixLoadData>(data)
+        } catch (_: Exception) {
+            if (data.isNotEmpty()) {
+                return loadExtractor(data, "", subtitleCallback, callback)
+            }
+            return false
+        }
+
         val headers = mapOf(
-            "accept" to "*/*", "content-type" to "application/json", "origin" to mainUrl,
-            "referer" to mainUrl, "user-agent" to USER_AGENT
+            "accept" to "*/*", 
+            "content-type" to "application/json", 
+            "origin" to mainUrl,
+            "referer" to "$mainUrl/", 
+            "user-agent" to USER_AGENT
         )
-        val challenge = app.post(
-            "$mainUrl/api/watch/challenge",
-            data = mapOf("contentType" to parsed.type, "contentId" to parsed.id, "clearance" to (aclr ?: "")),
-            headers = headers,
-            interceptor = cloudflareInterceptor
-        ).parsedSafe<IdlixChallengeResponse>() ?: return false
 
-        val solve = app.post(
-            "$mainUrl/api/watch/solve",
-            data = mapOf(
-                "challenge" to challenge.challenge,
-                "signature" to challenge.signature,
-                "nonce" to solvePow(challenge.challenge, challenge.difficulty).toString()
-            ),
-            headers = headers,
-            interceptor = cloudflareInterceptor
-        ).parsedSafe<IdlixSolveResponse>() ?: return false
+        try {
+            val aclrResponse = app.get("$mainUrl/pagead/ad_frame.js?_=${System.currentTimeMillis()}", interceptor = cloudflareInterceptor)
+            val aclr = aclrResponse.text.let {
+                Regex("""__aclr\s*=\s*"([a-f0-9]+)""").find(it)?.groupValues?.getOrNull(1)
+            }
 
-        val embedUrl = solve.embedUrl ?: solve.url ?: solve.file ?: return false
-        val finalUrl = if (embedUrl.startsWith("http", true)) embedUrl else "$mainUrl$embedUrl"
-        
-        return loadExtractorWithFallback(finalUrl, mainUrl, subtitleCallback, callback)
+            val challenge = app.post(
+                "$mainUrl/api/watch/challenge",
+                data = mapOf("contentType" to parsed.type, "contentId" to parsed.id, "clearance" to (aclr ?: "")),
+                headers = headers,
+                interceptor = cloudflareInterceptor
+            ).parsedSafe<IdlixChallengeResponse>()
+
+            if (challenge != null && challenge.challenge.isNotEmpty()) {
+                val solve = app.post(
+                    "$mainUrl/api/watch/solve",
+                    data = mapOf(
+                        "challenge" to challenge.challenge,
+                        "signature" to challenge.signature,
+                        "nonce" to solvePow(challenge.challenge, challenge.difficulty).toString()
+                    ),
+                    headers = headers,
+                    interceptor = cloudflareInterceptor
+                ).parsedSafe<IdlixSolveResponse>()
+
+                val embedUrl = solve?.embedUrl ?: solve?.url ?: solve?.file
+                if (!embedUrl.isNullOrEmpty()) {
+                    val finalUrl = if (embedUrl.startsWith("http", true)) embedUrl else "$mainUrl$embedUrl"
+                    if (loadExtractorWithFallback(finalUrl, mainUrl, subtitleCallback, callback)) {
+                        return true
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        // Fallback metode scraping HTML / API watch jika challenge gagal
+        try {
+            val watchUrl = if (parsed.type == "movie") {
+                "$mainUrl/api/movies/watch/${parsed.id}"
+            } else {
+                "$mainUrl/api/series/watch/${parsed.id}"
+            }
+
+            val doc = app.get(watchUrl, interceptor = cloudflareInterceptor).document
+            val iframeSrc = doc.select("iframe").attr("src").ifEmpty {
+                doc.select("source").attr("src")
+            }
+
+            if (iframeSrc.isNotEmpty()) {
+                val targetUrl = if (iframeSrc.startsWith("http", true)) iframeSrc else "$mainUrl$iframeSrc"
+                return loadExtractorWithFallback(targetUrl, mainUrl, subtitleCallback, callback)
+            }
+        } catch (_: Exception) {}
+
+        return false
     }
 
     private fun solvePow(challenge: String, difficulty: Int): Int {
