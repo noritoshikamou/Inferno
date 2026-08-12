@@ -163,37 +163,60 @@ class Idlix : MainAPI() {
         }
     }
 
-    override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
+ override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         val parsed = AppUtils.parseJson<IdlixLoadData>(data)
-        val aclrResponse = app.get("$mainUrl/pagead/ad_frame.js?_=${System.currentTimeMillis()}", interceptor = cloudflareInterceptor)
-        val aclr = aclrResponse.text.let {
-            Regex("""__aclr\s*=\s*"([a-f0-9]+)""").find(it)?.groupValues?.getOrNull(1)
-        }
-        val headers = mapOf(
-            "accept" to "*/*", "content-type" to "application/json", "origin" to mainUrl,
-            "referer" to mainUrl, "user-agent" to USER_AGENT
-        )
-        val challenge = app.post(
-            "$mainUrl/api/watch/challenge",
-            data = mapOf("contentType" to parsed.type, "contentId" to parsed.id, "clearance" to (aclr ?: "")),
-            headers = headers,
-            interceptor = cloudflareInterceptor
-        ).parsedSafe<IdlixChallengeResponse>() ?: return false
-
-        val solve = app.post(
-            "$mainUrl/api/watch/solve",
-            data = mapOf(
-                "challenge" to challenge.challenge,
-                "signature" to challenge.signature,
-                "nonce" to solvePow(challenge.challenge, challenge.difficulty).toString()
-            ),
-            headers = headers,
-            interceptor = cloudflareInterceptor
-        ).parsedSafe<IdlixSolveResponse>() ?: return false
-
-        val embedUrl = solve.embedUrl ?: solve.url ?: solve.file ?: return false
-        val finalUrl = if (embedUrl.startsWith("http", true)) embedUrl else "$mainUrl$embedUrl"
         
+        // Ambil halaman detail/watch langsung dari API atau web view
+        val url = if (parsed.type == "movie") {
+            "$mainUrl/api/movies/watch/${parsed.id}"
+        } else {
+            "$mainUrl/api/series/watch/${parsed.id}"
+        }
+
+        val doc = app.get(url, interceptor = cloudflareInterceptor).document
+        
+        // Cari iframe atau direct source player di dalam halaman watch
+        val iframeSrc = doc.select("iframe").attr("src").ifEmpty {
+            doc.select("source").attr("src")
+        }
+
+        val targetUrl = when {
+            iframeSrc.startsWith("http") -> iframeSrc
+            iframeSrc.startsWith("//") -> "https:$iframeSrc"
+            iframeSrc.isNotEmpty() -> "$mainUrl$iframeSrc"
+            else -> {
+                // Fallback ke endpoint API solve lama jika iframe tidak tertulis langsung
+                val aclrResponse = app.get("$mainUrl/pagead/ad_frame.js?_=${System.currentTimeMillis()}", interceptor = cloudflareInterceptor)
+                val aclr = aclrResponse.text.let {
+                    Regex("""__aclr\s*=\s*"([a-f0-9]+)""").find(it)?.groupValues?.getOrNull(1)
+                }
+                val headers = mapOf(
+                    "accept" to "*/*", "content-type" to "application/json", "origin" to mainUrl,
+                    "referer" to mainUrl, "user-agent" to USER_AGENT
+                )
+                val challenge = app.post(
+                    "$mainUrl/api/watch/challenge",
+                    data = mapOf("contentType" to parsed.type, "contentId" to parsed.id, "clearance" to (aclr ?: "")),
+                    headers = headers,
+                    interceptor = cloudflareInterceptor
+                ).parsedSafe<IdlixChallengeResponse>() ?: return false
+
+                val solve = app.post(
+                    "$mainUrl/api/watch/solve",
+                    data = mapOf(
+                        "challenge" to challenge.challenge,
+                        "signature" to challenge.signature,
+                        "nonce" to solvePow(challenge.challenge, challenge.difficulty).toString()
+                    ),
+                    headers = headers,
+                    interceptor = cloudflareInterceptor
+                ).parsedSafe<IdlixSolveResponse>() ?: return false
+
+                solve.embedUrl ?: solve.url ?: solve.file ?: return false
+            }
+        }
+
+        val finalUrl = if (targetUrl.startsWith("http", true)) targetUrl else "$mainUrl$targetUrl"
         return loadExtractorWithFallback(finalUrl, mainUrl, subtitleCallback, callback)
     }
 
