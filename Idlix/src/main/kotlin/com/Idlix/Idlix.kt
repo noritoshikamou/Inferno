@@ -6,11 +6,9 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTMDbId
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.*
-import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import java.security.MessageDigest
 
-// Data classes for API
 data class IdlixApiResponse(
     val data: List<IdlixApiItem> = emptyList()
 )
@@ -99,7 +97,8 @@ data class IdlixChallengeResponse(
 )
 
 data class IdlixSolveResponse(
-    val embedUrl: String? = null
+    val embedUrl: String? = null,
+    val url: String? = null
 )
 
 data class IdlixLoadData(
@@ -131,27 +130,22 @@ class Idlix : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (request.data.contains("%d")) request.data.format(page) else request.data
-        val res =
-            app.get(url, timeout = 10000L).parsedSafe<IdlixApiResponse>()
-                ?: return newHomePageResponse(request.name, emptyList())
+        val res = app.get(url, timeout = 10000L).parsedSafe<IdlixApiResponse>()
+            ?: return newHomePageResponse(request.name, emptyList())
         val home = res.data.mapNotNull { item ->
             val poster = item.posterPath?.let { "https://image.tmdb.org/t/p/w342$it" }
             if (item.contentType == "movie") {
                 newMovieSearchResponse(item.title ?: return@mapNotNull null, "$mainUrl/api/movies/${item.slug}", TvType.Movie) {
-                    this.posterUrl =
-                        poster
+                    this.posterUrl = poster
                     this.year = item.releaseDate?.substringBefore("-")?.toIntOrNull()
-                    this.quality =
-                        getQualityFromString(item.quality)
+                    this.quality = getQualityFromString(item.quality)
                     this.score = Score.from10(item.voteAverage)
                 }
             } else {
                 newTvSeriesSearchResponse(item.title ?: return@mapNotNull null, "$mainUrl/api/series/${item.slug}", TvType.TvSeries) {
-                    this.posterUrl =
-                        poster
+                    this.posterUrl = poster
                     this.year = item.releaseDate?.substringBefore("-")?.toIntOrNull()
-                    this.score =
-                        Score.from10(item.voteAverage)
+                    this.score = Score.from10(item.voteAverage)
                     this.quality = getQualityFromString(item.quality)
                 }
             }
@@ -160,14 +154,11 @@ class Idlix : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val res =
-            app.get("$mainUrl/api/search?q=$query&page=1&limit=20").parsedSafe<IdlixSearchResponse>()
-                ?: return emptyList()
+        val res = app.get("$mainUrl/api/search?q=$query&page=1&limit=20").parsedSafe<IdlixSearchResponse>()
+            ?: return emptyList()
         return res.results.mapNotNull { item ->
             val poster = "https://image.tmdb.org/t/p/w342${item.posterPath}"
-            val link = if (item.contentType ==
-                "movie"
-            ) {
+            val link = if (item.contentType == "movie") {
                 "$mainUrl/api/movies/${item.slug}"
             } else {
                 "$mainUrl/api/series/${item.slug}"
@@ -175,17 +166,14 @@ class Idlix : MainAPI() {
             if (item.contentType == "movie") {
                 newMovieSearchResponse(item.title, link, TvType.Movie) {
                     this.posterUrl = poster
-                    this.year =
-                        item.releaseDate?.substringBefore("-")?.toIntOrNull()
-                    this.quality =
-                        getQualityFromString(item.quality)
+                    this.year = item.releaseDate?.substringBefore("-")?.toIntOrNull()
+                    this.quality = getQualityFromString(item.quality)
                     this.score = Score.from10(item.voteAverage)
                 }
             } else {
                 newTvSeriesSearchResponse(item.title, link, TvType.TvSeries) {
                     this.posterUrl = poster
-                    this.year =
-                        item.releaseDate?.substringBefore("-")?.toIntOrNull()
+                    this.year = item.releaseDate?.substringBefore("-")?.toIntOrNull()
                     this.score = Score.from10(item.voteAverage)
                 }
             }
@@ -193,71 +181,59 @@ class Idlix : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
-        val data =
-            app.get(url, timeout = 10000L).parsedSafe<IdlixDetailResponse>()
-                ?: throw ErrorLoadingException("Invalid JSON response")
+        val data = app.get(url, timeout = 10000L).parsedSafe<IdlixDetailResponse>()
+            ?: throw ErrorLoadingException("Invalid JSON response")
         val title = data.title ?: "Unknown"
         val poster = data.posterPath?.let { "https://image.tmdb.org/t/p/w500$it" }
         val backdrop = data.backdropPath?.let { "https://image.tmdb.org/t/p/w780$it" }
         val tags = data.genres?.mapNotNull { it.name } ?: emptyList()
-        val actors =
-            data.cast?.mapNotNull {
-                it.name?.let { name ->
-                    Actor(name, it.profilePath?.let { p -> "https://image.tmdb.org/t/p/w185$p" })
-                }
+        val actors = data.cast?.mapNotNull {
+            it.name?.let { name ->
+                Actor(name, it.profilePath?.let { p -> "https://image.tmdb.org/t/p/w185$p" })
             }
-                ?: emptyList()
+        } ?: emptyList()
 
         if (data.seasons != null) {
             val episodes = mutableListOf<Episode>()
             data.firstSeason?.episodes?.forEach { ep ->
                 episodes.add(
                     newEpisode(IdlixLoadData(id = ep.id ?: return@forEach, type = "episode").toJson()) {
-                        this.name =
-                            ep.name
+                        this.name = ep.name
                         this.season = data.firstSeason.seasonNumber
                         this.episode = ep.episodeNumber
-                        this.description =
-                            ep.overview
+                        this.description = ep.overview
                         this.runTime = ep.runtime
                         this.score = Score.from10(ep.voteAverage?.toString())
-                        this.posterUrl =
-                            ep.stillPath?.let { "https://image.tmdb.org/t/p/w300$it" }
+                        this.posterUrl = ep.stillPath?.let { "https://image.tmdb.org/t/p/w300$it" }
                     }
                 )
             }
             data.seasons.forEach { season ->
                 val sn = season.seasonNumber ?: return@forEach
                 if (sn == data.firstSeason?.seasonNumber) return@forEach
-                app
-                    .get("$mainUrl/api/series/${data.slug}/season/$sn")
+                app.get("$mainUrl/api/series/${data.slug}/season/$sn")
                     .parsedSafe<IdlixSeasonWrapper>()
                     ?.season
                     ?.episodes
                     ?.forEach { ep ->
                         episodes.add(
                             newEpisode(IdlixLoadData(id = ep.id ?: return@forEach, type = "episode").toJson()) {
-                                this.name =
-                                    ep.name
+                                this.name = ep.name
                                 this.season = sn
                                 this.episode = ep.episodeNumber
                                 this.description = ep.overview
-                                this.runTime =
-                                    ep.runtime
+                                this.runTime = ep.runtime
                                 this.score = Score.from10(ep.voteAverage?.toString())
-                                this.posterUrl =
-                                    ep.stillPath?.let { "https://image.tmdb.org/t/p/w300$it" }
+                                this.posterUrl = ep.stillPath?.let { "https://image.tmdb.org/t/p/w300$it" }
                             }
                         )
                     }
             }
             return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
-                this.backgroundPosterUrl =
-                    backdrop
+                this.backgroundPosterUrl = backdrop
                 this.year = (data.releaseDate ?: data.firstAirDate)?.substringBefore("-")?.toIntOrNull()
-                this.plot =
-                    data.overview
+                this.plot = data.overview
                 this.tags = tags
                 this.score = Score.from10(data.voteAverage?.toString())
                 addActors(actors)
@@ -268,16 +244,12 @@ class Idlix : MainAPI() {
         } else {
             return newMovieLoadResponse(
                 title, url, TvType.Movie,
-                IdlixLoadData(id = data.id ?: "", type = "movie")
-                    .toJson()
+                IdlixLoadData(id = data.id ?: "", type = "movie").toJson()
             ) {
-                this.posterUrl =
-                    poster
+                this.posterUrl = poster
                 this.backgroundPosterUrl = backdrop
-                this.year =
-                    (data.releaseDate ?: data.firstAirDate)?.substringBefore("-")?.toIntOrNull()
-                this.plot =
-                    data.overview
+                this.year = (data.releaseDate ?: data.firstAirDate)?.substringBefore("-")?.toIntOrNull()
+                this.plot = data.overview
                 this.tags = tags
                 this.score = Score.from10(data.voteAverage?.toString())
                 addActors(actors)
@@ -289,56 +261,47 @@ class Idlix : MainAPI() {
     }
 
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
-        val parsed = parseJson<IdlixLoadData>(data)
+        val parsed = AppUtils.parseJson<IdlixLoadData>(data)
         val aclr = app.get("$mainUrl/pagead/ad_frame.js?_=${System.currentTimeMillis()}").text.let {
-            Regex("""__aclr\s*=\s*"([a-f0-9]+)""")
-                .find(it)
-                ?.groupValues
-                ?.getOrNull(1)
+            Regex("""__aclr\s*=\s*"([a-f0-9]+)""").find(it)?.groupValues?.getOrNull(1)
         }
         val headers = mapOf(
             "accept" to "*/*", "content-type" to "application/json", "origin" to mainUrl,
             "referer" to mainUrl, "user-agent" to USER_AGENT
         )
-        val challenge =
-            app
-                .post(
-                    "$mainUrl/api/watch/challenge",
-                    data = mapOf(
-                        "contentType" to parsed.type, "contentId" to parsed.id,
-                        "clearance" to (aclr ?: "")
-                    ),
-                    headers = headers
-                ).parsedSafe<IdlixChallengeResponse>()
-                ?: return false
-        val solve =
-            app
-                .post(
-                    "$mainUrl/api/watch/solve",
-                    data = mapOf(
-                        "challenge" to challenge.challenge,
-                        "signature" to challenge.signature,
-                        "nonce" to solvePow(challenge.challenge, challenge.difficulty).toString()
-                    ),
-                    headers = headers
-                ).parsedSafe<IdlixSolveResponse>()
-                ?: return false
-        val embedUrl = solve.embedUrl ?: return false
-        val finalUrl = app
-            .get("$mainUrl$embedUrl")
-            .document
-            .selectFirst("iframe")
-            ?.attr("src") ?: return false
-        return loadExtractorWithFallback(finalUrl, mainUrl, subtitleCallback, callback)
+        val challenge = app.post(
+            "$mainUrl/api/watch/challenge",
+            data = mapOf("contentType" to parsed.type, "contentId" to parsed.id, "clearance" to (aclr ?: "")),
+            headers = headers
+        ).parsedSafe<IdlixChallengeResponse>() ?: return false
+
+        val solve = app.post(
+            "$mainUrl/api/watch/solve",
+            data = mapOf(
+                "challenge" to challenge.challenge,
+                "signature" to challenge.signature,
+                "nonce" to solvePow(challenge.challenge, challenge.difficulty).toString()
+            ),
+            headers = headers
+        ).parsedSafe<IdlixSolveResponse>() ?: return false
+
+        val embedUrl = solve.embedUrl ?: solve.url ?: return false
+        val finalUrl = if (embedUrl.startsWith("http")) embedUrl else "$mainUrl$embedUrl"
+        
+        val documentTarget = app.get(finalUrl).document
+        val iframeSrc = documentTarget.selectFirst("iframe")?.attr("src") ?: finalUrl
+        
+        return loadExtractorWithFallback(iframeSrc, mainUrl, subtitleCallback, callback)
     }
 
     private fun solvePow(challenge: String, difficulty: Int): Int {
         val target = "0".repeat(difficulty)
         var nonce = 0
-        while (true) {
+        while (nonce < 5000000) {
             if (sha256(challenge + nonce).startsWith(target)) return nonce
             nonce++
         }
+        return 0
     }
 
     private fun sha256(input: String): String = MessageDigest
