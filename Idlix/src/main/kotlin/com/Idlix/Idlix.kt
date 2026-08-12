@@ -59,13 +59,16 @@ class Idlix : MainAPI() {
         }
         mainUrl = getBaseUrl(req.url)
         val document = req.document
+        
+        // Menyesuaikan penyeleksi untuk struktur Next.js / layout baru
         val home = (if (nonPaged) {
-            document.select("div.items.featured article")
+            document.select("div.items.featured article, div.grid article, main article")
         } else {
-            document.select("div.items.full article, div#archive-content article")
+            document.select("div.items.full article, div#archive-content article, div.grid article, main article")
         }).mapNotNull {
             it.toSearchResult()
         }
+        
         return newHomePageResponse(request.name, home)
     }
 
@@ -89,27 +92,28 @@ class Idlix : MainAPI() {
         }
     }
 
-    private fun Element.toSearchResult(): SearchResponse {
-        val title = this.selectFirst("h3 > a")!!.text().replace(Regex("\\(\\d{4}\\)"), "").trim()
-        val href = getProperLink(this.selectFirst("h3 > a")!!.attr("href"))
-        val posterUrl = this.select("div.poster > img").attr("src")
+    private fun Element.toSearchResult(): SearchResponse? {
+        val titleElement = this.selectFirst("h3 > a, h2 > a, a.title") ?: return null
+        val title = titleElement.text().replace(Regex("\\(\\d{4}\\)"), "").trim()
+        val href = getProperLink(titleElement.attr("href"))
+        val posterUrl = this.selectFirst("div.poster img, img")?.attr("src") ?: ""
         val quality = getQualityFromString(this.select("span.quality").text())
+        
         return newMovieSearchResponse(title, href, TvType.Movie) {
             this.posterUrl = posterUrl
             this.quality = quality
         }
-
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
         val req = app.get("$mainUrl/search/$query")
         mainUrl = getBaseUrl(req.url)
         val document = req.document
-        return document.select("div.result-item").map {
-            val title =
-                it.selectFirst("div.title > a")!!.text().replace(Regex("\\(\\d{4}\\)"), "").trim()
-            val href = getProperLink(it.selectFirst("div.title > a")!!.attr("href"))
-            val posterUrl = it.selectFirst("img")!!.attr("src")
+        return document.select("div.result-item, article").mapNotNull {
+            val titleElement = it.selectFirst("div.title > a, h3 > a") ?: return@mapNotNull null
+            val title = titleElement.text().replace(Regex("\\(\\d{4}\\)"), "").trim()
+            val href = getProperLink(titleElement.attr("href"))
+            val posterUrl = it.selectFirst("img")?.attr("src") ?: ""
             newMovieSearchResponse(title, href, TvType.TvSeries) {
                 this.posterUrl = posterUrl
             }
@@ -121,7 +125,7 @@ class Idlix : MainAPI() {
         directUrl = getBaseUrl(request.url)
         val document = request.document
         val title =
-            document.selectFirst("div.data > h1")?.text()?.replace(Regex("\\(\\d{4}\\)"), "")
+            document.selectFirst("div.data > h1, h1")?.text()?.replace(Regex("\\(\\d{4}\\)"), "")
                 ?.trim().toString()
         val images = document.select("div.g-item")
 
@@ -130,53 +134,57 @@ class Idlix : MainAPI() {
             .firstOrNull()
             ?.selectFirst("a")
             ?.attr("href")
-            ?: document.select("div.poster > img").attr("src")
-        val tags = document.select("div.sgeneros > a").map { it.text() }
+            ?: document.select("div.poster > img, img.poster").attr("src")
+        val tags = document.select("div.sgeneros > a, .genres a").map { it.text() }
         val year = Regex(",\\s?(\\d+)").find(
-            document.select("span.date").text().trim()
+            document.select("span.date, .released").text().trim()
         )?.groupValues?.get(1).toString().toIntOrNull()
-        val tvType = if (document.select("ul#section > li:nth-child(1)").text().contains("Episodes")
+        val tvType = if (document.select("ul#section > li:nth-child(1), .seasons").text().contains("Episodes")
         ) TvType.TvSeries else TvType.Movie
-         val description = if (tvType == TvType.Movie) 
-            document.select("div.wp-content > p").text().trim() else 
-            document.select("div.content > center > p:nth-child(3)").text().trim()
-        val trailer = document.selectFirst("div.embed iframe")?.attr("src")
-        val rating = document.selectFirst("span.dt_rating_vgs[itemprop=ratingValue]")
+        
+        val description = if (tvType == TvType.Movie) 
+            document.select("div.wp-content > p, .synopsis p").text().trim() else 
+            document.select("div.content > center > p:nth-child(3), .synopsis p").text().trim()
+            
+        val trailer = document.selectFirst("div.embed iframe, iframe")?.attr("src")
+        val rating = document.selectFirst("span.dt_rating_vgs[itemprop=ratingValue], .rating-value")
         ?.text()
         ?.toDoubleOrNull()
-        val actors = document.select("div.persons > div[itemprop=actor]").map {
-            Actor(it.select("meta[itemprop=name]").attr("content"), it.select("img").attr("src"))
+        
+        val actors = document.select("div.persons > div[itemprop=actor], .cast-item").map {
+            Actor(it.select("meta[itemprop=name], .name").attr("content").ifEmpty { it.text() }, it.select("img").attr("src"))
         }
-        val duration = document.selectFirst("div.extra span[itemprop=duration]")?.text()
+        val duration = document.selectFirst("div.extra span[itemprop=duration], .duration")?.text()
                         ?.replace(Regex("\\D"), "")
                         ?.toIntOrNull() ?: 0
-        val recommendations = document.select("#single_relacionados article").map {
-            val recName = it.selectFirst("img")!!.attr("alt").replace(Regex("\\(\\d{4}\\)"), "")
-            val recHref = it.selectFirst("a")!!.attr("href")
-            val recPosterUrl = it.selectFirst("img")?.attr("src").toString()
-            newMovieSearchResponse(recName,recHref,
+                        
+        val recommendations = document.select("#single_relacionados article, .related article").map {
+            val imgEl = it.selectFirst("img")
+            val aEl = it.selectFirst("a")
+            val recName = imgEl?.attr("alt")?.replace(Regex("\\(\\d{4}\\)"), "") ?: ""
+            val recHref = aEl?.attr("href") ?: ""
+            val recPosterUrl = imgEl?.attr("src").toString()
+            newMovieSearchResponse(recName, recHref,
                 if (recHref.contains("/movie/")) TvType.Movie 
-                    else TvType.TvSeries, false
+                    else TvType.TvSeries
             ) {
                 this.posterUrl = recPosterUrl
             }
         }
 
         return if (tvType == TvType.TvSeries) {
-            val episodes = document.select("ul.episodios > li").map {
+            val episodes = document.select("ul.episodios > li, .episode-item").map {
                 val href = it.select("a").attr("href")
-                val name = fixTitle(it.select("div.episodiotitle > a").text().trim())
-                val image = it.select("div.imagen > img").attr("src")
-                val episode = it.select("div.numerando").text().replace(" ", "").split("-").last()
-                    .toIntOrNull()
-                val season = it.select("div.numerando").text().replace(" ", "").split("-").first()
-                    .toIntOrNull()
-                newEpisode(href)
-                {
-                        this.name=name
-                        this.season=season
-                        this.episode=episode
-                        this.posterUrl=image
+                val name = fixTitle(it.select("div.episodiotitle > a, .ep-title").text().trim())
+                val image = it.select("div.imagen > img, img").attr("src")
+                val numerandoText = it.select("div.numerando, .ep-number").text()
+                val episode = numerandoText.replace(" ", "").split("-").last().toIntOrNull()
+                val season = numerandoText.replace(" ", "").split("-").first().toIntOrNull()
+                newEpisode(href) {
+                    this.name = name
+                    this.season = season
+                    this.episode = episode
+                    this.posterUrl = image
                 }
             }
             newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
@@ -219,7 +227,7 @@ class Idlix : MainAPI() {
         val idlixNonce = match?.groups?.get(1)?.value ?: ""
         val idlixTime = match?.groups?.get(2)?.value ?: ""
 
-        document.select("ul#playeroptionsul > li").map {
+        document.select("ul#playeroptionsul > li, .player-option").map {
                 Triple(
                     it.attr("data-post"),
                     it.attr("data-nume"),
@@ -239,14 +247,13 @@ class Idlix : MainAPI() {
             val decrypted =
                 AesHelper.cryptoAESHandler(json.embed_url, password.toByteArray(), false)
                     ?.fixBloat() ?: return@amap
-            Log.d("Phisher",decrypted.toJson())
+            Log.d("Phisher", decrypted.toJson())
 
             when {
                 !decrypted.contains("youtube") ->
-                    loadExtractor(decrypted,directUrl,subtitleCallback,callback)
+                    loadExtractor(decrypted, directUrl, subtitleCallback, callback)
                 else -> return@amap
             }
-
         }
 
         return true
@@ -299,6 +306,4 @@ class Idlix : MainAPI() {
     data class AesData(
         @JsonProperty("m") val m: String,
     )
-
-
 }
