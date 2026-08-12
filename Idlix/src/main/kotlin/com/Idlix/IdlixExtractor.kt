@@ -43,9 +43,26 @@ suspend fun loadExtractorWithFallback(
     subtitleCallback: (SubtitleFile) -> Unit,
     callback: (ExtractorLink) -> Unit
 ): Boolean {
+    var success = false
     try {
-        if (loadExtractor(url, referer, subtitleCallback, callback)) return true
+        if (loadExtractor(url, referer, subtitleCallback, callback)) {
+            success = true
+        }
     } catch (_: Exception) {}
+
+    if (!success) {
+        try {
+            val doc = app.get(url, referer = referer).document
+            // Coba ambil dari iframe jika ada di dalam halaman embed
+            val iframe = doc.selectFirst("iframe")?.attr("src")
+            if (!iframe.isNullOrEmpty()) {
+                val fixedIframe = if (iframe.startsWith("//")) "https:$iframe" else iframe
+                if (loadExtractor(fixedIframe, url, subtitleCallback, callback)) {
+                    success = true
+                }
+            }
+        } catch (_: Exception) {}
+    }
 
     val urlDomain = url.removePrefix("http://").removePrefix("https://").split("/").first().lowercase()
     val matchingExtractors = IdlixEkstraktors.list.filter { extractor ->
@@ -55,10 +72,11 @@ suspend fun loadExtractorWithFallback(
     for (extractor in matchingExtractors) {
         try {
             extractor.getUrl(url, referer, subtitleCallback, callback)
-            return true
+            success = true
         } catch (_: Exception) {}
     }
-    return false
+    
+    return success
 }
 
 class Jeniusplay : ExtractorApi() {
@@ -74,19 +92,34 @@ class Jeniusplay : ExtractorApi() {
     ) {
         try {
             val hash = url.split("/").last().substringAfter("data=")
-            val m3uLink = app.post(
+            val res = app.post(
                 url = "$mainUrl/player/index.php?data=$hash&do=getVideo",
-                data = mapOf("hash" to hash, "r" to "$referer"),
-                referer = referer,
-                headers = mapOf("X-Requested-With" to "XMLHttpRequest")
-            ).parsed<ResponseSource>().videoSource
+                data = mapOf("hash" to hash, "r" to (referer ?: mainUrl)),
+                referer = referer ?: mainUrl,
+                headers = mapOf(
+                    "X-Requested-With" to "XMLHttpRequest",
+                    "Origin" to mainUrl,
+                    "Referer" to "$mainUrl/"
+                )
+            ).parsedSafe<ResponseSource>()
 
-            callback.invoke(newExtractorLink(name, name, url = m3uLink, ExtractorLinkType.M3U8))
+            res?.videoSource?.let { m3uLink ->
+                callback.invoke(
+                    newExtractorLink(
+                        name = name,
+                        source = name,
+                        url = m3uLink,
+                        type = ExtractorLinkType.M3U8
+                    ) {
+                        this.headers = mapOf("Origin" to mainUrl, "Referer" to "$mainUrl/")
+                    }
+                )
+            }
         } catch (_: Exception) {}
     }
 
     data class ResponseSource(
-        @JsonProperty("videoSource") val videoSource: String
+        @JsonProperty("videoSource") val videoSource: String? = null
     )
 }
 
