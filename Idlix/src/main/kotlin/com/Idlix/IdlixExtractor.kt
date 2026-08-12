@@ -2,7 +2,16 @@ package com.Idlix
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.extractors.*
 import com.lagradost.cloudstream3.utils.*
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+
+// ============================================
+// REGION 1: MASTER LINK GENERATOR
+// ============================================
 
 object MasterLinkGenerator {
     suspend fun createLink(
@@ -37,46 +46,64 @@ object MasterLinkGenerator {
     }
 }
 
+// ============================================
+// REGION 2: LOAD EXTRACTOR WITH FALLBACK
+// ============================================
+
 suspend fun loadExtractorWithFallback(
     url: String,
     referer: String? = null,
     subtitleCallback: (SubtitleFile) -> Unit,
     callback: (ExtractorLink) -> Unit
 ): Boolean {
-    var success = false
-    try {
-        if (loadExtractor(url, referer, subtitleCallback, callback)) {
-            success = true
-        }
-    } catch (_: Exception) {}
+    var deliveredLinks = 0
+    val trackedCallback: (ExtractorLink) -> Unit = { link ->
+        deliveredLinks++
+        callback(link)
+    }
 
-    if (!success) {
-        try {
-            val doc = app.get(url, referer = referer).document
-            val iframe = doc.selectFirst("iframe")?.attr("src")
-            if (!iframe.isNullOrEmpty()) {
-                val fixedIframe = if (iframe.startsWith("//")) "https:$iframe" else iframe
-                if (loadExtractor(fixedIframe, url, subtitleCallback, callback)) {
-                    success = true
+    try {
+        if (loadExtractor(url, referer, subtitleCallback, trackedCallback)) return true
+    } catch (_: Exception) {
+    }
+
+    val urlDomain = url
+        .removePrefix("http://")
+        .removePrefix("https://")
+        .split("/")
+        .first()
+        .lowercase()
+        
+    val matchingExtractors = IdlixEkstraktors.list.filter { extractor ->
+        urlDomain.contains(
+            extractor.mainUrl
+                .removePrefix("http://")
+                .removePrefix("https://")
+                .split("/")
+                .first()
+                .lowercase()
+        )
+    }
+
+    coroutineScope {
+        val semaphore = Semaphore(3)
+        matchingExtractors.forEach { extractor ->
+            launch {
+                semaphore.withPermit {
+                    try {
+                        extractor.getUrl(url, referer, subtitleCallback, trackedCallback)
+                    } catch (_: Exception) {
+                    }
                 }
             }
-        } catch (_: Exception) {}
+        }
     }
-
-    val urlDomain = url.removePrefix("http://").removePrefix("https://").split("/").first().lowercase()
-    val matchingExtractors = IdlixEkstraktors.list.filter { extractor ->
-        urlDomain.contains(extractor.mainUrl.removePrefix("http://").removePrefix("https://").split("/").first().lowercase())
-    }
-
-    for (extractor in matchingExtractors) {
-        try {
-            extractor.getUrl(url, referer, subtitleCallback, callback)
-            success = true
-        } catch (_: Exception) {}
-    }
-    
-    return success
+    return deliveredLinks > 0
 }
+
+// ============================================
+// REGION 3: EXTRACTOR CLASSES
+// ============================================
 
 class Jeniusplay : ExtractorApi() {
     override val name = "Jeniusplay"
@@ -114,13 +141,18 @@ class Jeniusplay : ExtractorApi() {
                     }
                 )
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
     }
 
     data class ResponseSource(
         @JsonProperty("videoSource") val videoSource: String? = null
     )
 }
+
+// ============================================
+// REGION 4: EXTRACTORS LIST
+// ============================================
 
 object IdlixEkstraktors {
     val list = listOf(
