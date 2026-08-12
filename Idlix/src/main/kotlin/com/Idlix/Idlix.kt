@@ -66,6 +66,44 @@ class Idlix : MainAPI() {
         }
     }
 
+    private fun fixImageUrl(url: String?): String {
+        if (url.isNullOrBlank()) return ""
+        val clean = url.trim()
+        return when {
+            clean.startsWith("//") -> "https:$clean"
+            clean.startsWith("/") -> "$mainUrl$clean"
+            else -> clean
+        }
+    }
+
+    private fun extractImageUrl(element: Element?): String {
+        if (element == null) return ""
+        
+        // Cek berbagai atribut gambar yang sering dipakai oleh tema WordPress/Next.js
+        val attrs = listOf("data-src", "data-lazy-src", "data-original", "data-bg", "src", "srcset")
+        for (attr in attrs) {
+            val value = element.attr(attr)
+            if (value.isNotBlank() && !value.contains("data:image") && !value.contains("pixel")) {
+                if (attr == "srcset") {
+                    val firstSrc = value.split(",").lastOrNull()?.trim()?.split(" ")?.firstOrNull()
+                    if (!firstSrc.isNullOrBlank()) return fixImageUrl(firstSrc)
+                } else {
+                    return fixImageUrl(value)
+                }
+            }
+        }
+
+        // Cek background-image dari atribut style jika ada
+        val style = element.attr("style")
+        if (style.contains("background-image")) {
+            val regex = Regex("url\\(['\"]?(.*?)['\"]?\\)").find(style)
+            val bgUrl = regex?.groupValues?.get(1)
+            if (!bgUrl.isNullOrBlank()) return fixImageUrl(bgUrl)
+        }
+
+        return ""
+    }
+
     private fun Element.toSearchResult(): SearchResponse? {
         val aTag = if (this.tagName() == "a") this else (this.selectFirst("a") ?: this.selectFirst("a[href*='/movie/'], a[href*='/series/']") ?: return null)
         val href = getProperLink(aTag.attr("href"))
@@ -75,31 +113,15 @@ class Idlix : MainAPI() {
         val title = titleElement.text().replace(Regex("\\(\\d{4}\\)"), "").trim()
         if (title.isBlank()) return null
 
+        // Cari elemen gambar di dalam card, atau ambil background dari div/article jika berupa card CSS
         val imgElement = this.selectFirst("img")
-        val posterUrl = if (imgElement != null) {
-            val dataSrc = imgElement.attr("data-src")
-            val dataLazy = imgElement.attr("data-lazy-src")
-            val dataOrig = imgElement.attr("data-original")
-            val srcset = imgElement.attr("srcset")
-            val src = imgElement.attr("src")
-            
-            // Prioritaskan atribut gambar Next.js / lazy load yang valid, abaikan placeholder kecil atau kosong
-            val rawUrl = when {
-                dataSrc.isNotEmpty() -> dataSrc
-                dataLazy.isNotEmpty() -> dataLazy
-                dataOrig.isNotEmpty() -> dataOrig
-                srcset.isNotEmpty() -> srcset.split(",").lastOrNull()?.trim()?.split(" ")?.firstOrNull() ?: ""
-                src.isNotEmpty() && !src.contains("data:image") -> src
-                else -> ""
-            }
-
-            // Normalisasi URL gambar jika berbentuk relatif (dimulai dengan /)
-            when {
-                rawUrl.startsWith("//") -> "https:$rawUrl"
-                rawUrl.startsWith("/") -> "$mainUrl$rawUrl"
-                else -> rawUrl
-            }
-        } else ""
+        var posterUrl = extractImageUrl(imgElement)
+        
+        if (posterUrl.isBlank()) {
+            // Cek elemen lain yang mungkin menyimpan background atau gambar via style/atribut lain
+            val bgElement = this.selectFirst("[style*='background-image'], [data-bg], [data-background]")
+            posterUrl = extractImageUrl(bgElement)
+        }
 
         val quality = getQualityFromString(this.select("span.quality, .badge, div[class*='quality']").text())
         val tvType = if (href.contains("/series/")) TvType.TvSeries else TvType.Movie
@@ -126,29 +148,12 @@ class Idlix : MainAPI() {
         
         val title = document.selectFirst("h1")?.text()?.replace(Regex("\\(\\d{4}\\)"), "")?.trim().toString()
         
-        val posterElement = document.selectFirst("div.poster img, img.poster, main img, .thumb img, .entry-cover img")
-        val poster = if (posterElement != null) {
-            val dataSrc = posterElement.attr("data-src")
-            val dataLazy = posterElement.attr("data-lazy-src")
-            val dataOrig = posterElement.attr("data-original")
-            val srcset = posterElement.attr("srcset")
-            val src = posterElement.attr("src")
-            
-            val rawUrl = when {
-                dataSrc.isNotEmpty() -> dataSrc
-                dataLazy.isNotEmpty() -> dataLazy
-                dataOrig.isNotEmpty() -> dataOrig
-                srcset.isNotEmpty() -> srcset.split(",").lastOrNull()?.trim()?.split(" ")?.firstOrNull() ?: ""
-                src.isNotEmpty() && !src.contains("data:image") -> src
-                else -> ""
-            }
-
-            when {
-                rawUrl.startsWith("//") -> "https:$rawUrl"
-                rawUrl.startsWith("/") -> "$mainUrl$rawUrl"
-                else -> rawUrl
-            }
-        } else ""
+        val posterElement = document.selectFirst("div.poster img, img.poster, main img, .thumb img, .entry-cover img, .poster-container img")
+        var poster = extractImageUrl(posterElement)
+        if (poster.isBlank()) {
+            val altPoster = document.selectFirst("div.poster, .thumb, [style*='background-image']")
+            poster = extractImageUrl(altPoster)
+        }
 
         val tags = document.select("div.genres a, .tags a, span.genre").map { it.text() }
         
@@ -161,7 +166,7 @@ class Idlix : MainAPI() {
         
         val rating = document.selectFirst("span.rating, .score")?.text()?.toDoubleOrNull()
         val actors = document.select("div.cast-item, .actor").map {
-            Actor(it.select(".name, span").text(), it.select("img").attr("src"))
+            Actor(it.select(".name, span").text(), extractImageUrl(it.selectFirst("img")))
         }
         
         val duration = document.selectFirst("span.duration")?.text()?.replace(Regex("\\D"), "")?.toIntOrNull() ?: 0
@@ -176,22 +181,7 @@ class Idlix : MainAPI() {
                 val epName = fixTitle(it.select(".title, span").text().trim())
                 
                 val epImgElement = it.selectFirst("img")
-                val image = if (epImgElement != null) {
-                    val dSrc = epImgElement.attr("data-src")
-                    val dLazy = epImgElement.attr("data-lazy-src")
-                    val sSrc = epImgElement.attr("src")
-                    val rawEpImg = when {
-                        dSrc.isNotEmpty() -> dSrc
-                        dLazy.isNotEmpty() -> dLazy
-                        sSrc.isNotEmpty() && !sSrc.contains("data:image") -> sSrc
-                        else -> ""
-                    }
-                    when {
-                        rawEpImg.startsWith("//") -> "https:$rawEpImg"
-                        rawEpImg.startsWith("/") -> "$mainUrl$rawEpImg"
-                        else -> rawEpImg
-                    }
-                } else ""
+                val image = extractImageUrl(epImgElement)
 
                 val numerandoText = it.select(".numerando, .ep-number").text()
                 val episode = Regex("E(pisode)?\\s?(\\d+)").find(numerandoText)?.groupValues?.get(2)?.toIntOrNull()
