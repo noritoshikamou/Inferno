@@ -38,7 +38,7 @@ class Idlix : MainAPI() {
         }
     }
 
-  override suspend fun getMainPage(
+    override suspend fun getMainPage(
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
@@ -51,15 +51,6 @@ class Idlix : MainAPI() {
         }.distinctBy { it.url }
         
         return newHomePageResponse(request.name, home)
-    }
-
-    override suspend fun search(query: String): List<SearchResponse> {
-        val req = app.get("$mainUrl/search?q=$query")
-        mainUrl = getBaseUrl(req.url)
-        val document = req.document
-        return document.select("a.content-card, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
-            it.toSearchResult()
-        }.distinctBy { it.url }
     }
 
     private fun getProperLink(uri: String): String {
@@ -111,7 +102,7 @@ class Idlix : MainAPI() {
         return ""
     }
 
-private fun Element.toSearchResult(): SearchResponse? {
+    private fun Element.toSearchResult(): SearchResponse? {
         val aTag = if (this.hasClass("content-card") || this.tagName() == "a") this else (this.selectFirst("a.content-card") ?: this.selectFirst("a[href*='/movie/'], a[href*='/series/']") ?: return null)
         val href = getProperLink(aTag.attr("href"))
         if (href.isBlank() || (!href.contains("/movie/") && !href.contains("/series/"))) return null
@@ -139,7 +130,7 @@ private fun Element.toSearchResult(): SearchResponse? {
         val req = app.get("$mainUrl/search?q=$query")
         mainUrl = getBaseUrl(req.url)
         val document = req.document
-        return document.select("a[href*='/movie/'], a[href*='/series/']").mapNotNull {
+        return document.select("a.content-card, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
             it.toSearchResult()
         }.distinctBy { it.url }
     }
@@ -174,7 +165,7 @@ private fun Element.toSearchResult(): SearchResponse? {
         
         val duration = document.selectFirst("span.duration, .runtime")?.text()?.replace(Regex("\\D"), "")?.toIntOrNull() ?: 0
 
-        val recommendations = document.select("a[href*='/movie/'], a[href*='/series/']").mapNotNull {
+        val recommendations = document.select("a.content-card, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
             it.toSearchResult()
         }
 
