@@ -46,7 +46,8 @@ class Idlix : MainAPI() {
         mainUrl = getBaseUrl(req.url)
         val document = req.document
         
-        val home = document.select("div.items > item, article.item, div.post-row, div.item, div.result-item, div.tv-show, div.box, div.grid article, main article, div.group, div[class*='grid'] div, div[class*='flex'] div, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
+        // Memindai langsung seluruh tag <a> yang mengarah ke movie atau series di halaman utama
+        val home = document.select("a[href*='/movie/'], a[href*='/series/']").mapNotNull {
             it.toSearchResult()
         }.distinctBy { it.url }
         
@@ -103,27 +104,24 @@ class Idlix : MainAPI() {
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
-        val aTag = if (this.tagName() == "a") this else (this.selectFirst("a[href*='/movie/'], a[href*='/series/']") ?: this.selectFirst("a") ?: return null)
+        val aTag = if (this.tagName() == "a") this else (this.selectFirst("a[href*='/movie/'], a[href*='/series/']") ?: return null)
         val href = getProperLink(aTag.attr("href"))
         if (href.isBlank() || (!href.contains("/movie/") && !href.contains("/series/"))) return null
         
-        val imgElement = this.selectFirst("img")
-        val titleFromAlt = imgElement?.attr("alt") ?: ""
-        val titleElement = this.selectFirst("h3, h2, .title, span[class*='title'], div[class*='title'], .data h3, .name")
+        // Mengambil elemen gambar di dalam tag <a> kartu
+        val imgElement = aTag.selectFirst("img")
         
-        val title = titleFromAlt.ifBlank {
-            titleElement?.text()?.ifBlank { aTag.attr("title") }
-        }?.replace(Regex("\\(\\d{4}\\)"), "")?.trim() ?: "Unknown"
+        // Mengambil judul dari atribut alt pada gambar atau atribut title pada tag a
+        val title = imgElement?.attr("alt")?.ifBlank {
+            aTag.attr("title").ifBlank {
+                aTag.selectFirst("h3, h2, .title, span")?.text() ?: ""
+            }
+        }?.replace(Regex("\\(\\d{4}\\)"), "")?.trim() ?: ""
 
-        if (title.isBlank() || title == "Unknown") return null
+        if (title.isBlank()) return null
 
-        var posterUrl = extractImageUrl(imgElement)
-        if (posterUrl.isBlank()) {
-            val bgElement = this.selectFirst("[style*='background-image'], [data-bg], [data-background]")
-            posterUrl = extractImageUrl(bgElement)
-        }
-
-        val quality = getQualityFromString(this.select("span.quality, .badge, div[class*='quality'], .res, .cam, .web-dl").text())
+        val posterUrl = extractImageUrl(imgElement)
+        val quality = getQualityFromString(aTag.select("span.quality, .badge, div[class*='quality'], .res").text())
         val tvType = if (href.contains("/series/")) TvType.TvSeries else TvType.Movie
 
         return newMovieSearchResponse(title, href, tvType) {
@@ -136,7 +134,7 @@ class Idlix : MainAPI() {
         val req = app.get("$mainUrl/search?q=$query")
         mainUrl = getBaseUrl(req.url)
         val document = req.document
-        return document.select("div.items > item, article.item, div.post-row, div.item, div.result-item, div.tv-show, div.grid article, main article, div.group, div[class*='grid'] div, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
+        return document.select("a[href*='/movie/'], a[href*='/series/']").mapNotNull {
             it.toSearchResult()
         }.distinctBy { it.url }
     }
@@ -171,7 +169,7 @@ class Idlix : MainAPI() {
         
         val duration = document.selectFirst("span.duration, .runtime")?.text()?.replace(Regex("\\D"), "")?.toIntOrNull() ?: 0
 
-        val recommendations = document.select("div.related article, .recommendations a, .cates div.item, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
+        val recommendations = document.select("a[href*='/movie/'], a[href*='/series/']").mapNotNull {
             it.toSearchResult()
         }
 
