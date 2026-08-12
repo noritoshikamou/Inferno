@@ -59,10 +59,21 @@ class LayarKaca21 : MainAPI() {
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
-        val title = this.selectFirst("h3")?.ownText()?.trim() ?: this.selectFirst("h3")?.text()?.trim() ?: return null
+        val title = this.selectFirst("h3.poster-title")?.text()?.trim() 
+            ?: this.selectFirst("h3")?.text()?.trim() 
+            ?: return null
         val href = fixUrl(this.selectFirst("a")?.attr("href").orEmpty())
         val posterUrl = fixUrlNull(this.selectFirst("img")?.extractImageAttr().orEmpty())
-        val ratingText = this.selectFirst("span.rating")?.ownText()?.trim()
+        
+        // Mengambil skor rating berdasarkan itemprop ratingValue dari HTML
+        val ratingText = this.selectFirst("span[itemprop='ratingValue']")?.text()?.trim()
+            ?: this.selectFirst("span.rating")?.text()?.trim()
+            
+        // Mengambil jenis video / kualitas (misal: HD, CAM, atau Web jika kosong)
+        val qualityText = this.selectFirst("span.label")?.text()?.trim() 
+            ?: this.selectFirst("span.quality")?.text()?.trim() 
+            ?: "Web"
+
         val type = if (this.selectFirst("span.episode") == null) TvType.Movie else TvType.TvSeries
         val posterheaders = mapOf("Referer" to getBaseUrl(posterUrl ?: ""))
 
@@ -72,18 +83,20 @@ class LayarKaca21 : MainAPI() {
                 ?.text()
                 ?.filter { it.isDigit() }
                 ?.toIntOrNull() ?: 0
-            newAnimeSearchResponse(title, href, TvType.TvSeries) {
+            
+            newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
                 this.posterUrl = posterUrl
                 this.posterHeaders = posterheaders
-                addSub(episode)
                 this.score = Score.from10(ratingText?.toDoubleOrNull())
+                addQuality(qualityText)
+                addSub(episode)
             }
         } else {
             newMovieSearchResponse(title, href, TvType.Movie) {
                 this.posterUrl = posterUrl
                 this.posterHeaders = posterheaders
-                addQuality(this@toSearchResult.select("div.quality").text().trim())
                 this.score = Score.from10(ratingText?.toDoubleOrNull())
+                addQuality(qualityText)
             }
         }
     }
@@ -92,22 +105,9 @@ class LayarKaca21 : MainAPI() {
         val results = mutableListOf<SearchResponse>()
         try {
             val document = app.get("$searchUrl/?s=$query").document
-            document.select("article figure").forEach { element ->
-                val title = element.selectFirst("h3")?.text()?.trim() ?: return@forEach
-                val href = fixUrl(element.selectFirst("a")?.attr("href").orEmpty())
-                val posterUrl = fixUrlNull(element.selectFirst("img")?.extractImageAttr().orEmpty())
-                val type = if (element.selectFirst("span.episode") == null) TvType.Movie else TvType.TvSeries
-                
-                if (type == TvType.TvSeries) {
-                    results.add(newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
-                        this.posterUrl = posterUrl
-                    })
-                } else {
-                    results.add(newMovieSearchResponse(title, href, TvType.Movie) {
-                        this.posterUrl = posterUrl
-                    })
-                }
-            }
+            results.addAll(
+                document.select("article figure").mapNotNull { runCatching { it.toSearchResult() }.getOrNull() }
+            )
         } catch (_: Exception) {
         }
         return results
@@ -136,13 +136,8 @@ class LayarKaca21 : MainAPI() {
         val trailer = document.selectFirst("ul.action-left > li:nth-child(3) > a")?.attr("href")
         val rating = document.selectFirst("div.info-tag strong")?.text()
 
-        val recommendations = document.select("li.slider article").mapNotNull {
-            val recTitle = it.selectFirst("h3")?.text()?.trim().orEmpty()
-            val recHref = baseUrl + it.selectFirst("a")?.attr("href").orEmpty()
-            newTvSeriesSearchResponse(recTitle, recHref, TvType.TvSeries) {
-                this.posterUrl = fixUrl(it.selectFirst("img")?.extractImageAttr().orEmpty())
-                this.posterHeaders = posterHeaders
-            }
+        val recommendations = document.select("li.slider article").mapNotNull { 
+            runCatching { it.toSearchResult() }.getOrNull() 
         }
 
         return if (tvType == TvType.TvSeries) {
