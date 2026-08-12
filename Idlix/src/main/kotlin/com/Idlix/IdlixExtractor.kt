@@ -2,12 +2,7 @@ package com.Idlix
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.extractors.*
 import com.lagradost.cloudstream3.utils.*
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 
 // ============================================
 // REGION 1: MASTER LINK GENERATOR
@@ -64,8 +59,7 @@ suspend fun loadExtractorWithFallback(
 
     try {
         if (loadExtractor(url, referer, subtitleCallback, trackedCallback)) return true
-    } catch (_: Exception) {
-    }
+    } catch (_: Exception) {}
 
     val urlDomain = url
         .removePrefix("http://")
@@ -73,7 +67,7 @@ suspend fun loadExtractorWithFallback(
         .split("/")
         .first()
         .lowercase()
-        
+
     val matchingExtractors = IdlixEkstraktors.list.filter { extractor ->
         urlDomain.contains(
             extractor.mainUrl
@@ -85,19 +79,12 @@ suspend fun loadExtractorWithFallback(
         )
     }
 
-    coroutineScope {
-        val semaphore = Semaphore(3)
-        matchingExtractors.forEach { extractor ->
-            launch {
-                semaphore.withPermit {
-                    try {
-                        extractor.getUrl(url, referer, subtitleCallback, trackedCallback)
-                    } catch (_: Exception) {
-                    }
-                }
-            }
-        }
+    for (extractor in matchingExtractors) {
+        try {
+            extractor.getUrl(url, referer, subtitleCallback, trackedCallback)
+        } catch (_: Exception) {}
     }
+
     return deliveredLinks > 0
 }
 
@@ -141,8 +128,7 @@ class Jeniusplay : ExtractorApi() {
                     }
                 )
             }
-        } catch (_: Exception) {
-        }
+        } catch (_: Exception) {}
     }
 
     data class ResponseSource(
