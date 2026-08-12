@@ -37,8 +37,8 @@ class Ngefilm : MainAPI() {
 		"Genre/adventure/page/%d/" to "Adventure",
 		"Genre/animation/page/%d/" to "Animation",
 		"Genre/fantasy/page/%d/" to "Fantasy",
-		"country/japan/page/%d/" to "Japan",
 		"country/indonesia/page/%d/" to "Indonesia",
+		"country/japan/page/%d/" to "Japan",
 		"country/philippines/page/%d/" to "Philippines"
     )
 	
