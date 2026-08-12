@@ -30,7 +30,6 @@ class Idlix : MainAPI() {
         "$mainUrl/" to "Featured",
         "$mainUrl/movie" to "Film Terbaru",
         "$mainUrl/series" to "Serial TV Terbaru",
-        "$mainUrl/collection" to "Koleksi",
     )
 
     private fun getBaseUrl(url: String): String {
@@ -47,7 +46,8 @@ class Idlix : MainAPI() {
         mainUrl = getBaseUrl(req.url)
         val document = req.document
         
-        val home = document.select("div.grid article, main article, div.group, .item-root, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
+        // Perluasan selector card agar mencakup semua jenis struktur item grid/list website
+        val home = document.select("div.items > item, article.item, div.post-row, div.item, div.result-item, div.tv-show, div.映画, div.box, div.grid article, main article, div.group, .item-root, div[class*='grid'] div, div[class*='flex'] div, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
             it.toSearchResult()
         }.distinctBy { it.url }
         
@@ -66,28 +66,63 @@ class Idlix : MainAPI() {
         }
     }
 
+    private fun fixImageUrl(url: String?): String {
+        if (url.isNullOrBlank()) return ""
+        val clean = url.trim()
+        return when {
+            clean.startsWith("//") -> "https:$clean"
+            clean.startsWith("/") -> "$mainUrl$clean"
+            else -> clean
+        }
+    }
+
+    private fun extractImageUrl(element: Element?): String {
+        if (element == null) return ""
+        
+        val attrs = listOf("data-src", "data-lazy-src", "data-original", "data-bg", "src", "srcset")
+        for (attr in attrs) {
+            val value = element.attr(attr)
+            if (value.isNotBlank() && !value.contains("data:image") && !value.contains("pixel")) {
+                if (attr == "srcset") {
+                    val firstSrc = value.split(",").lastOrNull()?.trim()?.split(" ")?.firstOrNull()
+                    if (!firstSrc.isNullOrBlank()) return fixImageUrl(firstSrc)
+                } else {
+                    return fixImageUrl(value)
+                }
+            }
+        }
+
+        val style = element.attr("style")
+        if (style.contains("background-image")) {
+            val regex = Regex("url\\(['\"]?(.*?)['\"]?\\)").find(style)
+            val bgUrl = regex?.groupValues?.get(1)
+            if (!bgUrl.isNullOrBlank()) return fixImageUrl(bgUrl)
+        }
+
+        return ""
+    }
+
     private fun Element.toSearchResult(): SearchResponse? {
-        val aTag = if (this.tagName() == "a") this else (this.selectFirst("a") ?: return null)
+        val aTag = if (this.tagName() == "a") this else (this.selectFirst("a[href*='/movie/'], a[href*='/series/']") ?: this.selectFirst("a") ?: return null)
         val href = getProperLink(aTag.attr("href"))
         if (href.isBlank() || (!href.contains("/movie/") && !href.contains("/series/"))) return null
         
-        val titleElement = this.selectFirst("h3, h2, .title, span") ?: aTag
-        val title = titleElement.text().replace(Regex("\\(\\d{4}\\)"), "").trim()
+        // Mengambil judul dari elemen teks dengan fallback yang aman agar tidak null
+        val titleElement = this.selectFirst("h3, h2, .title, span[class*='title'], div[class*='title'], .data h3, .name") ?: aTag
+        val rawTitle = titleElement.text().ifBlank { aTag.attr("title") }
+        val title = rawTitle.replace(Regex("\\(\\d{4}\\)"), "").trim()
         if (title.isBlank()) return null
 
+        // Mencari elemen gambar/poster dengan cakupan luas
         val imgElement = this.selectFirst("img")
-        val posterUrl = if (imgElement != null) {
-            val dataSrc = imgElement.attr("data-src")
-            val dataLazy = imgElement.attr("data-lazy-src")
-            val src = imgElement.attr("src")
-            when {
-                dataSrc.isNotEmpty() -> dataSrc
-                dataLazy.isNotEmpty() -> dataLazy
-                else -> src
-            }
-        } else ""
+        var posterUrl = extractImageUrl(imgElement)
+        
+        if (posterUrl.isBlank()) {
+            val bgElement = this.selectFirst("[style*='background-image'], [data-bg], [data-background], .poster img, .thumbnail img")
+            posterUrl = extractImageUrl(bgElement)
+        }
 
-        val quality = getQualityFromString(this.select("span.quality, .badge").text())
+        val quality = getQualityFromString(this.select("span.quality, .badge, div[class*='quality'], .res").text())
         val tvType = if (href.contains("/series/")) TvType.TvSeries else TvType.Movie
 
         return newMovieSearchResponse(title, href, tvType) {
@@ -100,7 +135,7 @@ class Idlix : MainAPI() {
         val req = app.get("$mainUrl/search?q=$query")
         mainUrl = getBaseUrl(req.url)
         val document = req.document
-        return document.select("div.grid article, main article, div.group, a").mapNotNull {
+        return document.select("div.items > item, article.item, div.post-row, div.item, div.result-item, div.tv-show, div.grid article, main article, div.group, div[class*='grid'] a, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
             it.toSearchResult()
         }.distinctBy { it.url }
     }
@@ -110,56 +145,42 @@ class Idlix : MainAPI() {
         directUrl = getBaseUrl(request.url)
         val document = request.document
         
-        val title = document.selectFirst("h1")?.text()?.replace(Regex("\\(\\d{4}\\)"), "")?.trim().toString()
+        val title = document.selectFirst("h1, .sheader .data h1, .entry-title")?.text()?.replace(Regex("\\(\\d{4}\\)"), "")?.trim() ?: "Unknown"
         
-        val posterElement = document.selectFirst("div.poster img, img.poster, main img, .thumb img, .entry-cover img")
-        val poster = if (posterElement != null) {
-            val dataSrc = posterElement.attr("data-src")
-            val dataLazy = posterElement.attr("data-lazy-src")
-            val src = posterElement.attr("src")
-            when {
-                dataSrc.isNotEmpty() -> dataSrc
-                dataLazy.isNotEmpty() -> dataLazy
-                else -> src
-            }
-        } else ""
+        val posterElement = document.selectFirst("div.poster img, img.poster, main img, .thumb img, .entry-cover img, .poster-container img, .sheader .poster img")
+        var poster = extractImageUrl(posterElement)
+        if (poster.isBlank()) {
+            val altPoster = document.selectFirst("div.poster, .thumb, [style*='background-image']")
+            poster = extractImageUrl(altPoster)
+        }
 
-        val tags = document.select("div.genres a, .tags a, span.genre").map { it.text() }
+        val tags = document.select("div.genres a, .tags a, span.genre, .sheader .genres a").map { it.text() }
         
-        val yearText = document.select("span.date, .released, time").text().trim()
+        val yearText = document.select("span.date, .released, time, .custom_fields").text().trim()
         val year = Regex("(\\d{4})").find(yearText)?.groupValues?.get(1)?.toIntOrNull()
         
-        val tvType = if (url.contains("/series/") || document.select(".seasons, ul.episodios").isNotEmpty()) TvType.TvSeries else TvType.Movie
-        val description = document.select("div.synopsis p, div.content p, article p").text().trim()
+        val tvType = if (url.contains("/series/") || document.select(".seasons, ul.episodios, .episodios").isNotEmpty()) TvType.TvSeries else TvType.Movie
+        val description = document.select("div.synopsis p, div.content p, article p, .wp-content p").text().trim()
         val trailer = document.selectFirst("iframe[src*='youtube']")?.attr("src")
         
-        val rating = document.selectFirst("span.rating, .score")?.text()?.toDoubleOrNull()
-        val actors = document.select("div.cast-item, .actor").map {
-            Actor(it.select(".name, span").text(), it.select("img").attr("src"))
+        val rating = document.selectFirst("span.rating, .score, .dt_rating-stat")?.text()?.toDoubleOrNull()
+        val actors = document.select("div.cast-item, .actor, .person").map {
+            Actor(it.select(".name, span").text(), extractImageUrl(it.selectFirst("img")))
         }
         
-        val duration = document.selectFirst("span.duration")?.text()?.replace(Regex("\\D"), "")?.toIntOrNull() ?: 0
+        val duration = document.selectFirst("span.duration, .runtime")?.text()?.replace(Regex("\\D"), "")?.toIntOrNull() ?: 0
 
-        val recommendations = document.select("div.related article, .recommendations a").mapNotNull {
+        val recommendations = document.select("div.related article, .recommendations a, .cates div.item").mapNotNull {
             it.toSearchResult()
         }
 
         return if (tvType == TvType.TvSeries) {
-            val episodes = document.select("ul.episodios > li, .episode-item, a[href*='/episode/']").map {
+            val episodes = document.select("ul.episodios > li, .episode-item, a[href*='/episode/'], .episodios li").map {
                 val href = it.select("a").attr("href").ifEmpty { it.attr("href") }
-                val epName = fixTitle(it.select(".title, span").text().trim())
+                val epName = fixTitle(it.select(".title, span, .episodiotitle").text().trim())
                 
                 val epImgElement = it.selectFirst("img")
-                val image = if (epImgElement != null) {
-                    val dSrc = epImgElement.attr("data-src")
-                    val dLazy = epImgElement.attr("data-lazy-src")
-                    val sSrc = epImgElement.attr("src")
-                    when {
-                        dSrc.isNotEmpty() -> dSrc
-                        dLazy.isNotEmpty() -> dLazy
-                        else -> sSrc
-                    }
-                } else ""
+                val image = extractImageUrl(epImgElement)
 
                 val numerandoText = it.select(".numerando, .ep-number").text()
                 val episode = Regex("E(pisode)?\\s?(\\d+)").find(numerandoText)?.groupValues?.get(2)?.toIntOrNull()
