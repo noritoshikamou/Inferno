@@ -47,7 +47,6 @@ class Idlix : MainAPI() {
             mainUrl = getBaseUrl(req.url)
             val document = req.document
         
-            // Memperluas selector agar mencakup card / link film versi Next.js
             val home = document.select("div.grid article, main article, div.group, .item-root, div[class*='grid'] a, div[class*='flex'] a, a[href*='/movie/'], a[href*='/series/']").mapNotNull {
                 it.toSearchResult()
             }.distinctBy { it.url }
@@ -67,17 +66,15 @@ class Idlix : MainAPI() {
         }
     }
 
- private fun Element.toSearchResult(): SearchResponse? {
+    private fun Element.toSearchResult(): SearchResponse? {
         val aTag = if (this.tagName() == "a") this else (this.selectFirst("a") ?: this.selectFirst("a[href*='/movie/'], a[href*='/series/']") ?: return null)
         val href = getProperLink(aTag.attr("href"))
         if (href.isBlank() || (!href.contains("/movie/") && !href.contains("/series/"))) return null
         
-        // Mengambil judul dari elemen teks di dalam kartu
         val titleElement = this.selectFirst("h3, h2, .title, span[class*='title'], div[class*='title']") ?: aTag
         val title = titleElement.text().replace(Regex("\\(\\d{4}\\)"), "").trim()
         if (title.isBlank()) return null
 
-        // Perbaikan pencarian elemen gambar (poster) yang sering terbungkus komponen Next.js
         val imgElement = this.selectFirst("img")
         val posterUrl = if (imgElement != null) {
             val dataSrc = imgElement.attr("data-src")
@@ -85,13 +82,22 @@ class Idlix : MainAPI() {
             val dataOrig = imgElement.attr("data-original")
             val srcset = imgElement.attr("srcset")
             val src = imgElement.attr("src")
-            when {
+            
+            // Prioritaskan atribut gambar Next.js / lazy load yang valid, abaikan placeholder kecil atau kosong
+            val rawUrl = when {
                 dataSrc.isNotEmpty() -> dataSrc
                 dataLazy.isNotEmpty() -> dataLazy
                 dataOrig.isNotEmpty() -> dataOrig
-                srcset.isNotEmpty() -> srcset.split(" ").firstOrNull() ?: ""
+                srcset.isNotEmpty() -> srcset.split(",").lastOrNull()?.trim()?.split(" ")?.firstOrNull() ?: ""
                 src.isNotEmpty() && !src.contains("data:image") -> src
                 else -> ""
+            }
+
+            // Normalisasi URL gambar jika berbentuk relatif (dimulai dengan /)
+            when {
+                rawUrl.startsWith("//") -> "https:$rawUrl"
+                rawUrl.startsWith("/") -> "$mainUrl$rawUrl"
+                else -> rawUrl
             }
         } else ""
 
@@ -125,13 +131,22 @@ class Idlix : MainAPI() {
             val dataSrc = posterElement.attr("data-src")
             val dataLazy = posterElement.attr("data-lazy-src")
             val dataOrig = posterElement.attr("data-original")
+            val srcset = posterElement.attr("srcset")
             val src = posterElement.attr("src")
-            when {
+            
+            val rawUrl = when {
                 dataSrc.isNotEmpty() -> dataSrc
                 dataLazy.isNotEmpty() -> dataLazy
                 dataOrig.isNotEmpty() -> dataOrig
+                srcset.isNotEmpty() -> srcset.split(",").lastOrNull()?.trim()?.split(" ")?.firstOrNull() ?: ""
                 src.isNotEmpty() && !src.contains("data:image") -> src
                 else -> ""
+            }
+
+            when {
+                rawUrl.startsWith("//") -> "https:$rawUrl"
+                rawUrl.startsWith("/") -> "$mainUrl$rawUrl"
+                else -> rawUrl
             }
         } else ""
 
@@ -165,11 +180,16 @@ class Idlix : MainAPI() {
                     val dSrc = epImgElement.attr("data-src")
                     val dLazy = epImgElement.attr("data-lazy-src")
                     val sSrc = epImgElement.attr("src")
-                    when {
+                    val rawEpImg = when {
                         dSrc.isNotEmpty() -> dSrc
                         dLazy.isNotEmpty() -> dLazy
                         sSrc.isNotEmpty() && !sSrc.contains("data:image") -> sSrc
                         else -> ""
+                    }
+                    when {
+                        rawEpImg.startsWith("//") -> "https:$rawEpImg"
+                        rawEpImg.startsWith("/") -> "$mainUrl$rawEpImg"
+                        else -> rawEpImg
                     }
                 } else ""
 
