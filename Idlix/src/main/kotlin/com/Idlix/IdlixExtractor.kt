@@ -2,7 +2,16 @@ package com.Idlix
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.extractors.*
 import com.lagradost.cloudstream3.utils.*
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+
+// ============================================
+// REGION 1: MASTER LINK GENERATOR
+// ============================================
 
 object MasterLinkGenerator {
     suspend fun createLink(
@@ -37,6 +46,10 @@ object MasterLinkGenerator {
     }
 }
 
+// ============================================
+// REGION 2: LOAD EXTRACTOR WITH FALLBACK
+// ============================================
+
 suspend fun loadExtractorWithFallback(
     url: String,
     referer: String? = null,
@@ -51,7 +64,8 @@ suspend fun loadExtractorWithFallback(
 
     try {
         if (loadExtractor(url, referer, subtitleCallback, trackedCallback)) return true
-    } catch (_: Exception) {}
+    } catch (_: Exception) {
+    }
 
     val urlDomain = url
         .removePrefix("http://")
@@ -59,26 +73,37 @@ suspend fun loadExtractorWithFallback(
         .split("/")
         .first()
         .lowercase()
-
     val matchingExtractors = IdlixEkstraktors.list.filter { extractor ->
-        urlDomain.contains(
-            extractor.mainUrl
-                .removePrefix("http://")
-                .removePrefix("https://")
-                .split("/")
-                .first()
-                .lowercase()
-        )
+        urlDomain
+            .contains(
+                extractor.mainUrl
+                    .removePrefix("http://")
+                    .removePrefix("https://")
+                    .split("/")
+                    .first()
+                    .lowercase()
+            )
     }
 
-    for (extractor in matchingExtractors) {
-        try {
-            extractor.getUrl(url, referer, subtitleCallback, trackedCallback)
-        } catch (_: Exception) {}
+    coroutineScope {
+        val semaphore = Semaphore(3)
+        matchingExtractors.forEach { extractor ->
+            launch {
+                semaphore.withPermit {
+                    try {
+                        extractor.getUrl(url, referer, subtitleCallback, trackedCallback)
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+        }
     }
-
     return deliveredLinks > 0
 }
+
+// ============================================
+// REGION 3: EXTRACTOR CLASSES
+// ============================================
 
 class Jeniusplay : ExtractorApi() {
     override val name = "Jeniusplay"
@@ -93,36 +118,28 @@ class Jeniusplay : ExtractorApi() {
     ) {
         try {
             val hash = url.split("/").last().substringAfter("data=")
-            val res = app.post(
-                url = "$mainUrl/player/index.php?data=$hash&do=getVideo",
-                data = mapOf("hash" to hash, "r" to (referer ?: mainUrl)),
-                referer = referer ?: mainUrl,
-                headers = mapOf(
-                    "X-Requested-With" to "XMLHttpRequest",
-                    "Origin" to mainUrl,
-                    "Referer" to "$mainUrl/"
-                )
-            ).parsedSafe<ResponseSource>()
+            val m3uLink = app
+                .post(
+                    url = "$mainUrl/player/index.php?data=$hash&do=getVideo",
+                    data = mapOf("hash" to hash, "r" to "$referer"),
+                    referer = referer,
+                    headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+                ).parsed<ResponseSource>()
+                .videoSource
 
-            res?.videoSource?.let { m3uLink ->
-                callback.invoke(
-                    newExtractorLink(
-                        name = name,
-                        source = name,
-                        url = m3uLink,
-                        type = ExtractorLinkType.M3U8
-                    ) {
-                        this.headers = mapOf("Origin" to mainUrl, "Referer" to "$mainUrl/")
-                    }
-                )
-            }
-        } catch (_: Exception) {}
+            callback.invoke(newExtractorLink(name, name, url = m3uLink, ExtractorLinkType.M3U8))
+        } catch (_: Exception) {
+        }
     }
 
     data class ResponseSource(
-        @JsonProperty("videoSource") val videoSource: String? = null
+        @JsonProperty("videoSource") val videoSource: String
     )
 }
+
+// ============================================
+// REGION 4: EXTRACTORS LIST
+// ============================================
 
 object IdlixEkstraktors {
     val list = listOf(
