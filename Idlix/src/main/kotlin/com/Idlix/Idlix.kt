@@ -112,7 +112,7 @@ data class IdlixSeasonWrapper(
 )
 
 class Idlix : MainAPI() {
-    override var mainUrl = "https://z1.idlixku.com"
+    override var mainUrl = "https://z2.idlixku.com"
     override var name = "Idlix"
     override val hasMainPage = true
     override var lang = "id"
