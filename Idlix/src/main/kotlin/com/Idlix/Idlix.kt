@@ -46,7 +46,6 @@ class Idlix : MainAPI() {
         mainUrl = getBaseUrl(req.url)
         val document = req.document
         
-        // Menyesuaikan dengan tag <a> yang membungkus card film/series
         val home = document.select("a[href*='/movie/'], a[href*='/series/']").mapNotNull {
             it.toSearchResult()
         }.distinctBy { it.url }
@@ -79,10 +78,8 @@ class Idlix : MainAPI() {
     private fun extractImageUrl(element: Element?): String {
         if (element == null) return ""
         
-        // Prioritaskan pengambilan dari srcset karena kualitas gambar TMDB berada di sana
         val srcset = element.attr("srcset")
         if (srcset.isNotBlank()) {
-            // Ambil URL terakhir / terbesar dari format srcset (biasanya link resolusi tinggi)
             val lastSrc = srcset.split(",").lastOrNull()?.trim()?.split(" ")?.firstOrNull()
             if (!lastSrc.isNullOrBlank()) return fixImageUrl(lastSrc)
         }
@@ -110,7 +107,6 @@ class Idlix : MainAPI() {
         val href = getProperLink(aTag.attr("href"))
         if (href.isBlank() || (!href.contains("/movie/") && !href.contains("/series/"))) return null
         
-        // Mengambil judul dari tag img (atribut alt) atau teks elemen di dalam card
         val imgElement = this.selectFirst("img")
         val titleFromAlt = imgElement?.attr("alt") ?: ""
         val titleElement = this.selectFirst("h3, h2, .title, span[class*='title'], div[class*='title'], .data h3, .name")
@@ -136,7 +132,7 @@ class Idlix : MainAPI() {
         }
     }
 
-   override suspend fun search(query: String): List<SearchResponse> {
+    override suspend fun search(query: String): List<SearchResponse> {
         val req = app.get("$mainUrl/search?q=$query")
         mainUrl = getBaseUrl(req.url)
         val document = req.document
