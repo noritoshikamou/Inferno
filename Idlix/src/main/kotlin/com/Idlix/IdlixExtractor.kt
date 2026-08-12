@@ -53,7 +53,6 @@ suspend fun loadExtractorWithFallback(
     if (!success) {
         try {
             val doc = app.get(url, referer = referer).document
-            // Coba ambil dari iframe jika ada di dalam halaman embed
             val iframe = doc.selectFirst("iframe")?.attr("src")
             if (!iframe.isNullOrEmpty()) {
                 val fixedIframe = if (iframe.startsWith("//")) "https:$iframe" else iframe
