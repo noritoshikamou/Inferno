@@ -7,7 +7,7 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addTMDbId
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.toJson
-import com.lagradost.nicehttp.CloudflareInterceptor
+import com.lagradost.cloudstream3.network.CloudflareKiller
 import java.security.MessageDigest
 
 class Idlix : MainAPI() {
@@ -18,7 +18,7 @@ class Idlix : MainAPI() {
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
-    private val cloudflareInterceptor = CloudflareInterceptor()
+    private val cloudflareInterceptor = CloudflareKiller()
 
     override val mainPage = mainPageOf(
         "$mainUrl/api/movies?page=%d&limit=36&sort=createdAt" to "Movie Terbaru",
@@ -77,6 +77,7 @@ class Idlix : MainAPI() {
                     this.posterUrl = poster
                     this.year = item.releaseDate?.substringBefore("-")?.toIntOrNull()
                     this.score = Score.from10(item.voteAverage.toString())
+                    this.quality = getQualityFromString(item.quality)
                 }
             }
         }
@@ -191,7 +192,7 @@ class Idlix : MainAPI() {
         ).parsedSafe<IdlixSolveResponse>() ?: return false
 
         val embedUrl = solve.embedUrl ?: solve.url ?: solve.file ?: return false
-        val finalUrl = if (embedUrl.startsWith("http", ignoreCase = true)) embedUrl else "$mainUrl$embedUrl"
+        val finalUrl = if (embedUrl.startsWith("http", true)) embedUrl else "$mainUrl$embedUrl"
         
         return loadExtractorWithFallback(finalUrl, mainUrl, subtitleCallback, callback)
     }
