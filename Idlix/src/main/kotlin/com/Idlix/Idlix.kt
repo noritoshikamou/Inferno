@@ -75,17 +75,20 @@ class Idlix : MainAPI() {
         val title = titleElement.text().replace(Regex("\\(\\d{4}\\)"), "").trim()
         if (title.isBlank()) return null
 
-        // Mencari elemen gambar dan mengambil URL dari berbagai kemungkinan atribut lazy load
         val imgElement = this.selectFirst("img")
-        val posterUrl = imgElement?.let { img ->
+        val posterUrl = if (imgElement != null) {
+            val dataSrc = imgElement.attr("data-src")
+            val dataLazy = imgElement.attr("data-lazy-src")
+            val dataOrig = imgElement.attr("data-original")
+            val src = imgElement.attr("src")
             when {
-                img.hasAttr("data-src") && img.attr("data-src").isNotEmpty() -> img.attr("data-src")
-                img.hasAttr("data-lazy-src") && img.attr("data-lazy-src").isNotEmpty() -> img.attr("data-lazy-src")
-                img.hasAttr("data-original") && img.attr("data-original").isNotEmpty() -> img.attr("data-original")
-                img.attr("src").isNotEmpty() && !img.attr("src").contains("data:image") -> img.attr("src")
-                else -> img.attr("data-srcset").split(" ").firstOrNull() ?: ""
+                dataSrc.isNotEmpty() -> dataSrc
+                dataLazy.isNotEmpty() -> dataLazy
+                dataOrig.isNotEmpty() -> dataOrig
+                src.isNotEmpty() && !src.contains("data:image") -> src
+                else -> ""
             }
-        } ?: ""
+        } else ""
 
         val quality = getQualityFromString(this.select("span.quality, .badge").text())
         val tvType = if (href.contains("/series/")) TvType.TvSeries else TvType.Movie
@@ -95,7 +98,7 @@ class Idlix : MainAPI() {
             this.quality = quality
         }
     }
-    
+
     override suspend fun search(query: String): List<SearchResponse> {
         val req = app.get("$mainUrl/search?q=$query")
         mainUrl = getBaseUrl(req.url)
@@ -116,11 +119,14 @@ class Idlix : MainAPI() {
         val poster = if (posterElement != null) {
             val dataSrc = posterElement.attr("data-src")
             val dataLazy = posterElement.attr("data-lazy-src")
+            val dataOrig = posterElement.attr("data-original")
             val src = posterElement.attr("src")
             when {
                 dataSrc.isNotEmpty() -> dataSrc
                 dataLazy.isNotEmpty() -> dataLazy
-                else -> src
+                dataOrig.isNotEmpty() -> dataOrig
+                src.isNotEmpty() && !src.contains("data:image") -> src
+                else -> ""
             }
         } else ""
 
@@ -157,7 +163,8 @@ class Idlix : MainAPI() {
                     when {
                         dSrc.isNotEmpty() -> dSrc
                         dLazy.isNotEmpty() -> dLazy
-                        else -> sSrc
+                        sSrc.isNotEmpty() && !sSrc.contains("data:image") -> sSrc
+                        else -> ""
                     }
                 } else ""
 
