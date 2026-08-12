@@ -12,7 +12,6 @@ import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import org.jsoup.nodes.Element
 import java.net.URI
 
-
 class Idlix : MainAPI() {
     override var mainUrl = "https://z2.idlixku.com"
     private var directUrl = mainUrl
@@ -223,10 +222,36 @@ class Idlix : MainAPI() {
     ): Boolean {
         val document = app.get(data).document
         
-        document.select("ul#playeroptionsul > li, .player-option, iframe").amap { element ->
-            val playerUrl = element.attr("data-url").ifEmpty { element.attr("src") }
+        // Mengambil opsi player langsung dari halaman atau melalui AJAX POST request khas IDLIX/Wordpress
+        val serverElements = document.select("ul#playeroptionsul > li, .player-option, iframe")
+        
+        serverElements.amap { element ->
+            val dataId = element.attr("data-post")
+            val dataNum = element.attr("data-nume")
+            val dataType = element.attr("data-type")
+            
+            var playerUrl = element.attr("data-url").ifEmpty { element.attr("src") }
+            
+            // Jika menggunakan sistem ajax IDLIX
+            if (playerUrl.isEmpty() && dataId.isNotEmpty() && dataNum.isNotEmpty()) {
+                val ajaxUrl = "$directUrl/wp-admin/admin-ajax.php"
+                val res = app.post(
+                    ajaxUrl,
+                    data = mapOf(
+                        "action" to "player_ajax",
+                        "post" to dataId,
+                        "nume" to dataNum,
+                        "type" to dataType
+                    ),
+                    headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+                ).text
+                
+                val doc = org.jsoup.Jsoup.parse(res)
+                playerUrl = doc.selectFirst("iframe")?.attr("src") ?: ""
+            }
+
             if (playerUrl.isNotEmpty() && !playerUrl.contains("youtube")) {
-                loadExtractor(playerUrl, directUrl, subtitleCallback, callback)
+                loadExtractor(fixUrl(playerUrl), directUrl, subtitleCallback, callback)
             }
         }
         
