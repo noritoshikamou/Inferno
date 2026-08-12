@@ -1,7 +1,5 @@
 package com.idlix
 
-import com.idlix.Idlix.ResponseSource
-import com.idlix.Idlix.Tracks
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.AppUtils
@@ -30,7 +28,7 @@ class Jeniusplay : ExtractorApi() {
             data = mapOf("hash" to hash, "r" to "$referer"),
             referer = referer,
             headers = mapOf("X-Requested-With" to "XMLHttpRequest")
-        ).parsed<ResponseSource>().videoSource
+        ).parsed<Idlix.ResponseSource>().videoSource
 
         callback.invoke(
             newExtractorLink(
@@ -45,7 +43,7 @@ class Jeniusplay : ExtractorApi() {
             if (script.data().contains("eval(function(p,a,c,k,e,d)")) {
                 val subData =
                     getAndUnpack(script.data()).substringAfter("\"tracks\":[").substringBefore("],")
-                AppUtils.tryParseJson<List<Tracks>>("[$subData]")?.map { subtitle ->
+                AppUtils.tryParseJson<List<Idlix.Tracks>>("[$subData]")?.map { subtitle ->
                     subtitleCallback.invoke(
                         SubtitleFile(
                             getLanguage(subtitle.label ?: ""),
@@ -56,7 +54,6 @@ class Jeniusplay : ExtractorApi() {
             }
         }
     }
-
 
     private fun getLanguage(str: String): String {
         return when {
