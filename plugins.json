@@ -88,5 +88,25 @@
         "description": "\ud83c\udfa5 Movies & TV Series",
         "url": "https://raw.githubusercontent.com/noritoshikamou/Inferno/builds/Ngefilm.cs3",
         "name": "Ngefilm"
+    }, 
+    {
+        "url": "https://raw.githubusercontent.com/phisher98/CXXX/builds/Sextb.cs3",
+        "status": 1,
+        "version": 3,
+        "name": "Sextb",
+        "internalName": "Sextb",
+        "authors": [
+            "luck731"
+        ],
+        "description": "The Best Free JAV online, JAV DVD online, Stream JAV Online High Quality always updated daily.",
+        "fileSize": 12838,
+        "repositoryUrl": "https://github.com/phisher98/CXXX",
+        "language": "en",
+        "tvTypes": [
+            "NSFW"
+        ],
+        "iconUrl": "https://sextb.net/images/logo.png?v=1",
+        "apiVersion": 1,
+        "fileHash": "sha256-95c8806eef50e04986a2278c5b092a96cf1f1c91d9fb58e653550fbfc04061b1"
     }
 ]
